@@ -53,6 +53,8 @@ from .scraper import (  # noqa: E402
     METADADOS_FULL_URL,
     ScraperClient,
 )
+from .schema import SGS_CONTRACT  # noqa: E402
+from .writer import points_to_dataframe, save_parquet  # noqa: E402
 
 __all__ = [
     "__version__",
@@ -69,6 +71,7 @@ __all__ = [
     "MethodologyField",
     "ProviderField",
     "ScraperClient",
+    "SGS_CONTRACT",
     "SeriesMetadataBasic",
     "SeriesMetadataFull",
     "SeriesPoint",
@@ -86,5 +89,7 @@ __all__ = [
     "parse_metadata_basic",
     "parse_metadata_full",
     "parse_metadata_search",
+    "points_to_dataframe",
+    "save_parquet",
     "storage",
 ]
