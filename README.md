@@ -1,49 +1,38 @@
-# bcb-sgs-fetcher
+# bcb-sgs-fetcher: Coletor de séries temporais do BCB SGS
 
-A Python package for scraping metadata and fetching time-series data from
-the Brazilian Central Bank's **SGS** (Sistema Gerenciador de Séries
-Temporais).
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) ![Python](https://img.shields.io/badge/python-3.12+-blue.svg?style=flat-square)
 
-Two data sources are exposed:
+Biblioteca Python para download de dados e metadados do **SGS** (Sistema Gerenciador de Séries Temporais) do Banco Central do Brasil. Expõe dois clientes independentes: um para a API JSON pública e outro para raspagem HTML do portal SGS.
 
-- **`api.bcb.gov.br/dados/serie/bcdata.sgs.{id}/dados`** — public JSON API
-  for time-series values.
-- **`www3.bcb.gov.br/sgspub`** — public website holding rich metadata
-  (themes, units, descriptions, methodology). Accessed via HTML scraping.
+**Fonte dos dados:** [BCB SGS — Sistema Gerenciador de Séries Temporais](https://www.bcb.gov.br/estatisticas/tabelaestatistica)
 
-The package returns plain Python `@dataclass` objects, has no database,
-no Flask/Celery dependencies, and ships with retry logic powered by
-`tenacity`.
-
-## Install
+## Instalação
 
 ```bash
-uv add bcb-sgs-fetcher
-# or
-pip install bcb-sgs-fetcher
+pip install git+https://github.com/Quantilica/bcb-sgs-fetcher.git
 ```
 
-## Usage
+## Uso Rápido
 
-### Fetch time-series data (JSON API)
+### Buscar dados de uma série temporal
 
 ```python
 from bcb_sgs_fetcher import SgsDataClient
 
 with SgsDataClient() as client:
     points = client.fetch_series_data(
-        series_id=1,                # USD/BRL
-        frequency_acronym="D",      # daily — uses retroactive year-by-year strategy
+        series_id=1,            # Dólar/Real (USD/BRL)
+        frequency_acronym="D",  # Diária — usa estratégia retroativa ano a ano
     )
 
 for p in points[:3]:
     print(p.date, p.value)
 ```
 
-`points` is a `list[SeriesPoint]` where each item has `series_id`, `date`,
-`date_end` and `value` (`Decimal | None`).
+`points` é uma `list[SeriesPoint]` onde cada item contém `series_id`, `date`,
+`date_end` e `value` (`Decimal | None`).
 
-### Scrape metadata (HTML)
+### Buscar metadados de uma série
 
 ```python
 from bcb_sgs_fetcher import (
@@ -61,15 +50,40 @@ print(basic.name, basic.frequency_acronym)
 print(full.last_update, len(full.provider_data))
 ```
 
-### Walk the group tree
+## CLI
+
+### Via quantilica-cli
+
+```bash
+# Baixar dados de uma série
+quantilica fetch bcb-sgs fetch 1 -f D -o ./dados
+
+# Baixar metadados de uma série
+quantilica fetch bcb-sgs metadata 1 -o ./dados
+
+# Buscar séries por texto
+quantilica fetch bcb-sgs search "câmbio"
+```
+
+### CLI standalone
+
+```bash
+# Baixar dados de uma série
+bcb-sgs-fetcher fetch 1 --frequency D --output ./dados
+
+# Baixar metadados
+bcb-sgs-fetcher metadata 1 --output ./dados
+
+# Buscar séries por texto
+bcb-sgs-fetcher search "taxa selic"
+```
+
+## API Python
+
+### Navegar a árvore de grupos
 
 ```python
-from bcb_sgs_fetcher import (
-    ScraperClient,
-    extract_arvore_grupos,
-    extract_table_data,
-    get_n_pages,
-)
+from bcb_sgs_fetcher import ScraperClient, extract_arvore_grupos, extract_table_data
 from bs4 import BeautifulSoup
 
 with ScraperClient() as scraper:
@@ -78,10 +92,9 @@ with ScraperClient() as scraper:
     grupos = extract_arvore_grupos(soup.find("table"))
 ```
 
-### Optional disk cache
+### Cache em disco
 
-`bcb_sgs_fetcher.storage` provides the same monthly-partitioned cache
-layout used by the upstream `bcb-sgs-metadata-db`:
+`bcb_sgs_fetcher.storage` oferece layout de cache particionado por mês:
 
 ```python
 from pathlib import Path
@@ -93,6 +106,22 @@ storage.save_bytes(html_bytes, month_dir / "metadata" / "000001_basic.html")
 storage.save_json(parsed_dict, month_dir / "metadata" / "000001.json")
 ```
 
-## License
+## Fontes de Dados
 
-MIT — see [LICENSE](LICENSE).
+| Cliente | URL | Tipo |
+| :--- | :--- | :--- |
+| `SgsDataClient` | `api.bcb.gov.br/dados/serie/bcdata.sgs.{id}/dados` | API JSON pública |
+| `ScraperClient` | `www3.bcb.gov.br/sgspub` | Raspagem HTML |
+
+## Desenvolvimento
+
+```bash
+git clone https://github.com/Quantilica/bcb-sgs-fetcher.git
+cd bcb-sgs-fetcher
+uv sync --dev
+uv run pytest
+```
+
+## Licença
+
+MIT — veja [LICENSE](LICENSE).
