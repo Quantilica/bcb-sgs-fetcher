@@ -2,13 +2,13 @@
 
 Public surface:
 
-- :class:`SgsDataClient` — context-manager client that wraps an
-  ``httpx.Client`` and exposes the high-level
+- :class:`SgsDataClient` — context-manager client that wraps a
+  ``quantilica_core.HttpClient`` and exposes the high-level
   :meth:`SgsDataClient.fetch_series_data` method, which returns
   :class:`~bcb_sgs_fetcher.models.SeriesPoint` instances.
 - :func:`fetch_series_data` and :func:`get_daily_series` — module-level
-  helpers that accept an existing ``httpx.Client`` for callers that
-  already manage their own session.
+  helpers that accept an existing ``HttpClient`` for callers that already
+  manage their own session.
 """
 
 import datetime as dt
@@ -17,10 +17,7 @@ from types import TracebackType
 from typing import Literal
 
 import httpx
-from tenacity import retry
-from tenacity.retry import retry_if_exception_type
-from tenacity.stop import stop_after_attempt
-from tenacity.wait import wait_exponential
+from quantilica_core.http import HttpClient
 
 from . import logger
 from .models import SeriesPoint
@@ -28,10 +25,6 @@ from .models import SeriesPoint
 API_BASE_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs."
 
 Period = Literal["all", "latest"]
-
-_RETRY_ON = retry_if_exception_type(
-    (httpx.RequestError, httpx.HTTPStatusError, httpx.TimeoutException)
-)
 
 
 def get_url(series_id: int, period: Period = "all") -> str:
@@ -49,20 +42,12 @@ def get_url(series_id: int, period: Period = "all") -> str:
     return f"{API_BASE_URL}{series_id}/dados{latest}?formato=json"
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, max=10),
-    retry=_RETRY_ON,
-    reraise=True,
-)
 def _get_json(
-    url: str, client: httpx.Client
+    url: str, client: HttpClient
 ) -> list[dict[str, str | None]]:
     """GET ``url`` and return the parsed JSON, asserting it is a list."""
     logger.info("Requesting data from %s", url)
-    r = client.get(url)
-    r.raise_for_status()
-    data = r.json()
+    data = client.get_json(url)
     if not isinstance(data, list):
         raise ValueError(f"Unexpected response format: {data}")
     return data
@@ -99,7 +84,7 @@ def _parse_point(
 
 
 def get_daily_series(
-    series_id: int, client: httpx.Client
+    series_id: int, client: HttpClient
 ) -> list[SeriesPoint]:
     """Fetch a daily series using the year-by-year retroactive strategy.
 
@@ -149,7 +134,7 @@ def get_daily_series(
 
 def fetch_series_data(
     series_id: int,
-    client: httpx.Client,
+    client: HttpClient,
     period: Period = "all",
     frequency_acronym: str | None = None,
 ) -> list[SeriesPoint]:
@@ -157,7 +142,7 @@ def fetch_series_data(
 
     Args:
         series_id: BCB SGS series identifier.
-        client: An ``httpx.Client`` to use for the request.
+        client: An ``HttpClient`` to use for the request.
         period: ``"all"`` (default) for the full history or ``"latest"``
             for the last 20 observations.
         frequency_acronym: One of ``"D"``, ``"S"``, ``"M"``, ``"T"``,
@@ -194,10 +179,7 @@ class SgsDataClient:
         timeout: float = 60,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        kwargs: dict = {"timeout": timeout}
-        if transport is not None:
-            kwargs["transport"] = transport
-        self.client = httpx.Client(**kwargs)
+        self.client = HttpClient(timeout=timeout, transport=transport)
 
     def fetch_series_data(
         self,
@@ -218,7 +200,7 @@ class SgsDataClient:
         return get_daily_series(series_id=series_id, client=self.client)
 
     def close(self) -> None:
-        self.client.close()
+        pass  # HttpClient is stateless; connections close after each request
 
     def __enter__(self) -> "SgsDataClient":
         return self

@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from quantilica_core.files import write_bytes_atomic, write_text_atomic
+
 
 def get_data_dir(data_dir: Path, date: dt.date) -> Path:
     """Return the month-partitioned subdirectory for ``date``.
@@ -20,14 +22,13 @@ def get_data_dir(data_dir: Path, date: dt.date) -> Path:
 
 
 def save_json(data: Any, filepath: Path) -> None:
-    """Write ``data`` as pretty-printed UTF-8 JSON, creating parents."""
+    """Write ``data`` as pretty-printed UTF-8 JSON atomically."""
     filepath.parent.mkdir(parents=True, exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=1, default=str, ensure_ascii=False)
+    text = json.dumps(data, indent=1, default=str, ensure_ascii=False)
+    write_text_atomic(filepath, text)
 
 
 def save_bytes(data: bytes, filepath: Path) -> None:
-    """Write raw bytes, creating parents."""
+    """Write raw bytes atomically."""
     filepath.parent.mkdir(parents=True, exist_ok=True)
-    with open(filepath, "wb") as f:
-        f.write(data)
+    write_bytes_atomic(filepath, data)

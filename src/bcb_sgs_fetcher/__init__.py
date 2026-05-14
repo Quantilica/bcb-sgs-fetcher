@@ -1,13 +1,15 @@
-"""Public API for ``bcb_sgs_fetcher``.
+"""Public API for ``bcb_sgs_fetcher``."""
 
-The package exposes a logger configured with a ``NullHandler`` so
-consumers can opt-in to logging configuration.
-"""
+from importlib.metadata import PackageNotFoundError, version
 
-import logging
+from quantilica_core.logging import get_logger
 
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+logger = get_logger(__name__)
+
+try:
+    __version__ = version("bcb-sgs-fetcher")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 from . import storage  # noqa: E402  re-exported for convenience
 from .data import (  # noqa: E402
@@ -53,6 +55,7 @@ from .scraper import (  # noqa: E402
 )
 
 __all__ = [
+    "__version__",
     "API_BASE_URL",
     "ArvoreGrupoLink",
     "BASE_URL",
