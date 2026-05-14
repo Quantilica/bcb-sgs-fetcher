@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from quantilica_core.http import HttpClient
 
 from bcb_sgs_fetcher import (
     SeriesPoint,
@@ -53,11 +54,10 @@ def test_fetch_monthly_series_returns_points():
         {"data": "01/03/2024", "valor": ""},  # null value
     ]
     transport = httpx.MockTransport(_handler_json(payload))
-    client = httpx.Client(transport=transport)
+    client = HttpClient(transport=transport)
     points = fetch_series_data(
         series_id=4189, client=client, period="all", frequency_acronym="M"
     )
-    client.close()
 
     assert points == [
         SeriesPoint(
@@ -87,9 +87,8 @@ def test_fetch_period_with_data_fim():
         },
     ]
     transport = httpx.MockTransport(_handler_json(payload))
-    client = httpx.Client(transport=transport)
+    client = HttpClient(transport=transport)
     points = fetch_series_data(series_id=99, client=client, period="latest")
-    client.close()
 
     assert points == [
         SeriesPoint(
@@ -102,8 +101,8 @@ def test_fetch_period_with_data_fim():
 
 
 def test_unexpected_payload_logs_and_returns_empty():
-    # ``get`` returns an error JSON object — fetch_series_data must swallow
-    # the ValueError raised internally and return an empty list.
+    # ``get_json`` returns an error JSON object — fetch_series_data must
+    # swallow the ValueError raised internally and return an empty list.
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
@@ -112,9 +111,8 @@ def test_unexpected_payload_logs_and_returns_empty():
         )
 
     transport = httpx.MockTransport(handler)
-    client = httpx.Client(transport=transport)
+    client = HttpClient(transport=transport)
     assert fetch_series_data(series_id=1, client=client, period="all") == []
-    client.close()
 
 
 def test_daily_series_walks_years_backwards():
