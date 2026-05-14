@@ -1,0 +1,16 @@
+__pycache__
+build/
+dist/
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# UV
+uv.lock
+
+# Data
+data/
+
+# Config
+*.ini

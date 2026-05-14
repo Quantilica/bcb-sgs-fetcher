@@ -1,0 +1,61 @@
+[project]
+name = "bcb-sgs-fetcher"
+version = "0.1.0"
+description = "A Python package for scraping metadata and fetching time series data from BCB's SGS (Sistema Gerenciador de Series Temporais)"
+readme = "README.md"
+authors = [
+    { name = "Komesu, D.K.", email = "daniel@dkko.me" },
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.13"
+keywords = [
+    "bcb",
+    "banco-central",
+    "sgs",
+    "series-temporais",
+    "time-series",
+    "brazil",
+    "open-data",
+    "api-client",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "httpx>=0.28.1",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "markdownify>=0.13",
+    "tenacity>=9.1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/dankkom/bcb-sgs-fetcher"
+Repository = "https://github.com/dankkom/bcb-sgs-fetcher"
+Issues = "https://github.com/dankkom/bcb-sgs-fetcher/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.9.0",
+]
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
