@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Scraper for the BCB SGS website (www3.bcb.gov.br/sgspub).
 
 :class:`ScraperClient` is a thin context manager around ``httpx.Client``.

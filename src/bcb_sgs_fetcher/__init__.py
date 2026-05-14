@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Public API for ``bcb_sgs_fetcher``.
 
 The package exposes a logger configured with a ``NullHandler`` so

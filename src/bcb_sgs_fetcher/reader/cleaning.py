@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Helpers to clean text and translate Portuguese labels to internal keys."""
 
 import re

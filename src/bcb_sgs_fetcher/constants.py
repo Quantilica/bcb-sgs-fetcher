@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Internal field-name constants used while parsing BCB SGS HTML.
 
 These constants exist so the parsers can produce intermediate dicts keyed

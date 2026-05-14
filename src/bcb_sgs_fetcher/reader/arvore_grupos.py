@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Parsers for the "árvore de grupos" navigation page."""
 
 import re

@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Client for the public BCB SGS JSON API (``api.bcb.gov.br``).
 
 Public surface:

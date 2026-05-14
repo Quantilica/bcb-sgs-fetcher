@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Generic helpers to parse the "Localizar séries" HTML tables.
 
 The BCB site uses the same table structure to list active series inside a

@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Parsers for the two metadata iframes of the BCB SGS website.
 
 Both parsers return typed :mod:`bcb_sgs_fetcher.models` dataclasses

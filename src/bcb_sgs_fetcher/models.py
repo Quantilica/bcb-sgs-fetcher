@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Typed data structures returned by the package.
 
 Every public function in :mod:`bcb_sgs_fetcher` returns one of the
