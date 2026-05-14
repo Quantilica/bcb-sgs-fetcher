@@ -1,7 +1,7 @@
 """Parsers for the "árvore de grupos" navigation page."""
 
 import re
-from typing import Generator
+from collections.abc import Generator
 
 from bs4 import BeautifulSoup, Tag
 

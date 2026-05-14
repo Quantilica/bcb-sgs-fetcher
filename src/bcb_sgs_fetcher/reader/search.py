@@ -34,7 +34,7 @@ def parse_metadata_search(html: str | bytes) -> dict[str, str]:
     columns = [clean_cell_text(th.text) for th in thead_row.find_all("th")]
     tbody_row = table.find("tr", recursive=False)
     values = [clean_cell_text(td.text) for td in tbody_row.find_all("td")]
-    data = dict(zip(columns, values))
+    data = dict(zip(columns, values, strict=False))
 
     for unused_col in ("Sel.", "Met.", "Esp."):
         data.pop(unused_col, None)

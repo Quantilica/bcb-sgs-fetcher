@@ -106,7 +106,7 @@ def extract_table_data(table: Tag) -> list[GrupoSeriesRow]:
             re.sub(r"\s+", " ", c.text.strip()) for c in row_cells
         ]
         row_data: dict[str, str | dt.date | None] = dict(
-            zip(columns_names, row_values)
+            zip(columns_names, row_values, strict=False)
         )
 
         # Skip header rows / empty rows that don't carry a series id.
