@@ -15,8 +15,7 @@ from quantilica_core.files import write_bytes_atomic, write_text_atomic
 def get_data_dir(data_dir: Path, date: dt.date) -> Path:
     """Return the month-partitioned subdirectory for ``date``.
 
-    Follows the ``bcb-sgs_YYYY-MM`` convention already used by the
-    upstream ``bcb-sgs-metadata-db`` package.
+    Uses the ``bcb-sgs_YYYY-MM`` month-partitioned convention.
     """
     return data_dir / f"bcb-sgs_{date:%Y-%m}"
 

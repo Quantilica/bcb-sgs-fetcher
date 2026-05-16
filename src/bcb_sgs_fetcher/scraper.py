@@ -44,8 +44,7 @@ class ScraperClient:
 
     Args:
         timeout: HTTP timeout in seconds. Defaults to 600 (the default
-            timeout used by ``bcb-sgs-metadata-db`` historically — the
-            metadata iframes can be slow).
+            timeout in seconds (metadata iframes can be slow).
         language: ``"pt"`` (default) or ``"en"`` — selects the locale of
             the resulting HTML pages.
         transport: Optional ``httpx`` transport override (useful for
