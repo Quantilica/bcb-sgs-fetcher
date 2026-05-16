@@ -18,6 +18,7 @@ from bcb_sgs_fetcher import (
     ScraperClient,
     SgsDataClient,
     __version__,
+    bulk,
     extract_table_data,
     logger,
     parse_metadata_basic,
@@ -59,6 +60,57 @@ def handle_metadata(args: argparse.Namespace) -> None:
         meta_dir / f"{args.series_id:06d}_full.json",
     )
     logger.info("Metadados salvos em %s", meta_dir)
+
+
+def handle_arvore_grupos(args: argparse.Namespace) -> None:
+    dest_dir = (
+        storage.get_data_dir(args.output, dt.date.today())
+        / "arvore-grupos"
+    )
+    with ScraperClient() as scraper:
+        bulk.fetch_arvore_grupos(
+            scraper, dest_dir, sleeptime=args.sleeptime
+        )
+    logger.info("Árvore de grupos salva em %s", dest_dir)
+
+
+def handle_series_desativadas(args: argparse.Namespace) -> None:
+    dest_dir = (
+        storage.get_data_dir(args.output, dt.date.today())
+        / "series-desativadas"
+    )
+    with ScraperClient() as scraper:
+        bulk.fetch_series_desativadas(
+            scraper, dest_dir, sleeptime=args.sleeptime
+        )
+    logger.info("Séries desativadas salvas em %s", dest_dir)
+
+
+def handle_metadata_bulk(args: argparse.Namespace) -> None:
+    ids: list[int] = list(args.series_id or [])
+    if args.ids_file is not None:
+        ids += [
+            int(line.strip())
+            for line in args.ids_file.read_text().splitlines()
+            if line.strip()
+        ]
+    if not ids:
+        logger.error(
+            "Forneça --ids-file ou pelo menos um --series-id."
+        )
+        sys.exit(1)
+
+    dest_dir = (
+        storage.get_data_dir(args.output, dt.date.today()) / "metadata"
+    )
+    scraper = ScraperClient()
+    try:
+        successful, failed = bulk.fetch_metadata_bulk(
+            ids, scraper, dest_dir, sleeptime=args.sleeptime
+        )
+    finally:
+        scraper.close()
+    logger.info("Completo: %d OK, %d falhas", successful, failed)
 
 
 def handle_search(args: argparse.Namespace) -> None:
@@ -143,6 +195,79 @@ def set_parser() -> argparse.ArgumentParser:
     )
     search_parser.add_argument("text", help="Texto de busca")
     search_parser.set_defaults(func=handle_search)
+
+    # arvore-grupos
+    arvore_parser = subparsers.add_parser(
+        "arvore-grupos",
+        help="Baixar árvore de grupos e listas de séries",
+    )
+    arvore_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de saída",
+    )
+    arvore_parser.add_argument(
+        "--sleeptime",
+        type=float,
+        default=10.0,
+        help="Segundos de espera entre requisições",
+    )
+    arvore_parser.set_defaults(func=handle_arvore_grupos)
+
+    # series-desativadas
+    desativ_parser = subparsers.add_parser(
+        "series-desativadas",
+        help="Baixar todas as séries desativadas",
+    )
+    desativ_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de saída",
+    )
+    desativ_parser.add_argument(
+        "--sleeptime",
+        type=float,
+        default=10.0,
+        help="Segundos de espera entre requisições",
+    )
+    desativ_parser.set_defaults(func=handle_series_desativadas)
+
+    # metadata-bulk
+    meta_bulk_parser = subparsers.add_parser(
+        "metadata-bulk",
+        help="Baixar metadados de múltiplas séries",
+    )
+    meta_bulk_parser.add_argument(
+        "--ids-file",
+        type=Path,
+        default=None,
+        help="Arquivo com IDs de séries (um por linha)",
+    )
+    meta_bulk_parser.add_argument(
+        "--series-id",
+        nargs="+",
+        type=int,
+        default=None,
+        help="IDs de séries explícitos",
+    )
+    meta_bulk_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de saída",
+    )
+    meta_bulk_parser.add_argument(
+        "--sleeptime",
+        type=float,
+        default=10.0,
+        help="Segundos de espera entre requisições",
+    )
+    meta_bulk_parser.set_defaults(func=handle_metadata_bulk)
 
     return parser
 

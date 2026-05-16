@@ -13,6 +13,7 @@ from quantilica_core.logging import configure_cli_logging
 from bcb_sgs_fetcher import (
     ScraperClient,
     SgsDataClient,
+    bulk,
     extract_table_data,
     parse_metadata_basic,
     parse_metadata_full,
@@ -93,6 +94,128 @@ def metadata(
         meta_dir / f"{series_id:06d}_full.json",
     )
     typer.echo(f"Metadados salvos em {meta_dir}")
+
+
+@app.command("arvore-grupos")
+def arvore_grupos_cmd(
+    output: Annotated[
+        Path,
+        typer.Option("-o", "--output", help="Diretório de saída"),
+    ] = _DEFAULT_OUTPUT,
+    sleeptime: Annotated[
+        float,
+        typer.Option(
+            "--sleeptime",
+            help="Segundos de espera entre requisições",
+        ),
+    ] = 10.0,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", help="Logs detalhados")
+    ] = False,
+) -> None:
+    """Baixar a árvore de grupos e listas de séries do SGS/BCB."""
+    configure_cli_logging(verbose=verbose)
+    dest_dir = (
+        storage.get_data_dir(output, dt.date.today())
+        / "arvore-grupos"
+    )
+    with ScraperClient() as scraper:
+        bulk.fetch_arvore_grupos(
+            scraper, dest_dir, sleeptime=sleeptime
+        )
+    typer.echo(f"Árvore de grupos salva em {dest_dir}")
+
+
+@app.command("series-desativadas")
+def series_desativadas_cmd(
+    output: Annotated[
+        Path,
+        typer.Option("-o", "--output", help="Diretório de saída"),
+    ] = _DEFAULT_OUTPUT,
+    sleeptime: Annotated[
+        float,
+        typer.Option(
+            "--sleeptime",
+            help="Segundos de espera entre requisições",
+        ),
+    ] = 10.0,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", help="Logs detalhados")
+    ] = False,
+) -> None:
+    """Baixar todas as séries desativadas do SGS/BCB."""
+    configure_cli_logging(verbose=verbose)
+    dest_dir = (
+        storage.get_data_dir(output, dt.date.today())
+        / "series-desativadas"
+    )
+    with ScraperClient() as scraper:
+        bulk.fetch_series_desativadas(
+            scraper, dest_dir, sleeptime=sleeptime
+        )
+    typer.echo(f"Séries desativadas salvas em {dest_dir}")
+
+
+@app.command("metadata-bulk")
+def metadata_bulk_cmd(
+    ids_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--ids-file",
+            help="Arquivo com IDs de séries (um por linha)",
+        ),
+    ] = None,
+    series_id: Annotated[
+        list[int] | None,
+        typer.Option(
+            "--series-id",
+            help="ID de série (repita para múltiplos)",
+        ),
+    ] = None,
+    output: Annotated[
+        Path,
+        typer.Option("-o", "--output", help="Diretório de saída"),
+    ] = _DEFAULT_OUTPUT,
+    sleeptime: Annotated[
+        float,
+        typer.Option(
+            "--sleeptime",
+            help="Segundos de espera entre requisições",
+        ),
+    ] = 10.0,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", help="Logs detalhados")
+    ] = False,
+) -> None:
+    """Baixar metadados de múltiplas séries do SGS/BCB."""
+    configure_cli_logging(verbose=verbose)
+
+    ids: list[int] = list(series_id or [])
+    if ids_file is not None:
+        ids += [
+            int(line.strip())
+            for line in ids_file.read_text().splitlines()
+            if line.strip()
+        ]
+
+    if not ids:
+        typer.echo(
+            "Erro: forneça --ids-file ou pelo menos um --series-id.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    dest_dir = (
+        storage.get_data_dir(output, dt.date.today()) / "metadata"
+    )
+    scraper = ScraperClient()
+    try:
+        successful, failed = bulk.fetch_metadata_bulk(
+            ids, scraper, dest_dir, sleeptime=sleeptime
+        )
+    finally:
+        scraper.close()
+    typer.echo(f"Completo: {successful} OK, {failed} falhas.")
 
 
 @app.command("search")

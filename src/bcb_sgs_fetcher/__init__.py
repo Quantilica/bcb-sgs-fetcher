@@ -11,7 +11,12 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
-from . import storage  # noqa: E402  re-exported for convenience
+from . import bulk, storage  # noqa: E402  re-exported for convenience
+from .bulk import (  # noqa: E402
+    fetch_arvore_grupos,
+    fetch_metadata_bulk,
+    fetch_series_desativadas,
+)
 from .data import (  # noqa: E402
     API_BASE_URL,
     SgsDataClient,
@@ -46,6 +51,7 @@ from .reader.table_utils import (  # noqa: E402
     extract_table_data,
     get_n_pages,
 )
+from .schema import SGS_CONTRACT  # noqa: E402
 from .scraper import (  # noqa: E402
     BASE_URL,
     LOCALIZAR_SERIES_URL,
@@ -53,13 +59,16 @@ from .scraper import (  # noqa: E402
     METADADOS_FULL_URL,
     ScraperClient,
 )
-from .schema import SGS_CONTRACT  # noqa: E402
 from .writer import points_to_dataframe, save_parquet  # noqa: E402
 
 __all__ = [
     "__version__",
     "API_BASE_URL",
     "ArvoreGrupoLink",
+    "bulk",
+    "fetch_arvore_grupos",
+    "fetch_metadata_bulk",
+    "fetch_series_desativadas",
     "BASE_URL",
     "DescriptionField",
     "DisseminationField",
