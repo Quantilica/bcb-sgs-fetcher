@@ -80,45 +80,49 @@ bcb-sgs-fetcher search "taxa selic"
 
 ### Pipeline completo de metadados em lote
 
-Para baixar e processar metadados de **todas** as séries do SGS, execute os
-quatro comandos abaixo em sequência. Cada passo grava arquivos em
-`<output>/bcb-sgs_YYYY-MM/` e os passos seguintes consomem o que o anterior
-produziu.
+Para baixar e processar metadados de **todas** as séries do SGS, use o
+comando `pipeline`:
 
 ```bash
-# 1. Baixa a árvore de grupos e as listagens de séries por grupo
+bcb-sgs-fetcher pipeline -o /data/bcb-sgs
+```
+
+Ele executa automaticamente os quatro passos em sequência, cada um com sua
+própria sessão HTTP:
+
+1. Baixa a árvore de grupos e as listagens de séries por grupo
+2. Baixa as páginas de séries desativadas
+3. Extrai todos os IDs dos HTMLs baixados
+4. Baixa e parseia os metadados de cada série
+
+Todos os dados são gravados em `<output>/bcb-sgs_YYYY-MM/`. O pipeline é
+**retomável**: arquivos já existentes no disco são ignorados em todos os
+passos, então basta reexecutar o mesmo comando após uma interrupção.
+
+Para ajustar o intervalo entre requisições (padrão: 10 segundos):
+
+```bash
+bcb-sgs-fetcher pipeline -o /data/bcb-sgs --sleeptime 5
+```
+
+#### Passos individuais
+
+Se precisar executar um passo isoladamente (ex.: após corrigir falhas
+parciais), os subcomandos individuais aceitam os mesmos parâmetros:
+
+```bash
+# Apenas a árvore de grupos
 bcb-sgs-fetcher arvore-grupos -o /data/bcb-sgs
 
-# 2. Baixa as páginas de séries desativadas
+# Apenas séries desativadas
 bcb-sgs-fetcher series-desativadas -o /data/bcb-sgs
 
-# 3. Extrai todos os IDs de séries dos HTMLs baixados nos passos 1 e 2
-#    e salva em <output>/bcb-sgs_YYYY-MM/ids.txt
+# Apenas extração de IDs (grava em <output>/bcb-sgs_YYYY-MM/ids.txt)
 bcb-sgs-fetcher extract-ids -o /data/bcb-sgs
 
-# 4. Baixa e parseia os metadados de cada série
-bcb-sgs-fetcher metadata-bulk --ids-file /data/bcb-sgs/bcb-sgs_YYYY-MM/ids.txt \
-    -o /data/bcb-sgs
-```
-
-Os passos 1 e 2 são retomáveis: arquivos já existentes no disco são ignorados.
-O passo 4 também é retomável: séries cujos HTMLs já foram salvos não são
-rebaixadas.
-
-Por padrão `arvore-grupos`, `series-desativadas` e `metadata-bulk` aguardam
-10 segundos entre requisições (`--sleeptime`). Para ajustar:
-
-```bash
-bcb-sgs-fetcher arvore-grupos -o /data/bcb-sgs --sleeptime 5
-```
-
-O caminho do `--ids-file` no passo 4 inclui o mês corrente; substitua
-`YYYY-MM` pelo valor real (ex.: `2026-05`) ou use o valor padrão gerado pelo
-passo 3 diretamente:
-
-```bash
+# Apenas metadados, a partir de um arquivo de IDs
 bcb-sgs-fetcher metadata-bulk \
-    --ids-file /data/bcb-sgs/bcb-sgs_$(date +%Y-%m)/ids.txt \
+    --ids-file /data/bcb-sgs/bcb-sgs_YYYY-MM/ids.txt \
     -o /data/bcb-sgs
 ```
 

@@ -125,6 +125,63 @@ def handle_extract_ids(args: argparse.Namespace) -> None:
     logger.info("Salvos %d IDs únicos em %s", len(ids), outfile)
 
 
+def handle_pipeline(args: argparse.Namespace) -> None:
+    data_dir = storage.get_data_dir(args.output, dt.date.today())
+
+    logger.info("=== Passo 1/4: árvore de grupos ===")
+    with ScraperClient() as scraper:
+        try:
+            bulk.fetch_arvore_grupos(
+                scraper,
+                data_dir / "arvore-grupos",
+                sleeptime=args.sleeptime,
+            )
+        except Exception as exc:
+            logger.error("Passo 1 encerrado com erro: %s", exc)
+
+    logger.info("=== Passo 2/4: séries desativadas ===")
+    with ScraperClient() as scraper:
+        try:
+            bulk.fetch_series_desativadas(
+                scraper,
+                data_dir / "series-desativadas",
+                sleeptime=args.sleeptime,
+            )
+        except Exception as exc:
+            logger.error("Passo 2 encerrado com erro: %s", exc)
+
+    logger.info("=== Passo 3/4: extração de IDs ===")
+    ids = bulk.extract_ids_from_data_dir(data_dir)
+    if not ids:
+        logger.error(
+            "Nenhum ID extraído — verifique os erros acima."
+        )
+        sys.exit(1)
+    logger.info("%d IDs únicos extraídos", len(ids))
+
+    logger.info("=== Passo 4/4: metadados ===")
+    scraper = ScraperClient()
+    try:
+        successful, failed = bulk.fetch_metadata_bulk(
+            ids,
+            scraper,
+            data_dir / "metadata",
+            sleeptime=args.sleeptime,
+        )
+    finally:
+        scraper.close()
+
+    if failed:
+        logger.warning(
+            "Pipeline concluído: %d OK, %d falha(s)", successful, failed
+        )
+    else:
+        logger.info(
+            "Pipeline concluído: %d séries processadas com sucesso",
+            successful,
+        )
+
+
 def handle_search(args: argparse.Namespace) -> None:
     from bs4 import BeautifulSoup
 
@@ -162,6 +219,29 @@ def set_parser() -> argparse.ArgumentParser:
     parser.set_defaults(func=lambda _: parser.print_help())
 
     subparsers = parser.add_subparsers(title="commands", dest="command")
+
+    # pipeline
+    pipeline_parser = subparsers.add_parser(
+        "pipeline",
+        help=(
+            "Executar o pipeline completo de metadados"
+            " (arvore-grupos -> series-desativadas -> extract-ids -> metadata-bulk)"
+        ),
+    )
+    pipeline_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de saída",
+    )
+    pipeline_parser.add_argument(
+        "--sleeptime",
+        type=float,
+        default=10.0,
+        help="Segundos de espera entre requisições (padrão: 10)",
+    )
+    pipeline_parser.set_defaults(func=handle_pipeline)
 
     # fetch
     fetch_parser = subparsers.add_parser(
