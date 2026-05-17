@@ -113,6 +113,18 @@ def handle_metadata_bulk(args: argparse.Namespace) -> None:
     logger.info("Completo: %d OK, %d falhas", successful, failed)
 
 
+def handle_extract_ids(args: argparse.Namespace) -> None:
+    data_dir = storage.get_data_dir(args.output, dt.date.today())
+    ids = bulk.extract_ids_from_data_dir(data_dir)
+    if not ids:
+        logger.warning("Nenhum ID encontrado em %s", data_dir)
+        return
+    outfile: Path = args.ids_file or (data_dir / "ids.txt")
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+    outfile.write_text("\n".join(str(i) for i in ids) + "\n")
+    logger.info("Salvos %d IDs únicos em %s", len(ids), outfile)
+
+
 def handle_search(args: argparse.Namespace) -> None:
     from bs4 import BeautifulSoup
 
@@ -235,6 +247,32 @@ def set_parser() -> argparse.ArgumentParser:
         help="Segundos de espera entre requisições",
     )
     desativ_parser.set_defaults(func=handle_series_desativadas)
+
+    # extract-ids
+    extract_ids_parser = subparsers.add_parser(
+        "extract-ids",
+        help=(
+            "Extrair IDs de séries dos HTMLs baixados"
+            " (arvore-grupos + series-desativadas)"
+        ),
+    )
+    extract_ids_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de dados (mesmo usado em arvore-grupos e series-desativadas)",
+    )
+    extract_ids_parser.add_argument(
+        "--ids-file",
+        type=Path,
+        default=None,
+        help=(
+            "Arquivo de saída com os IDs, um por linha"
+            " (padrão: <output>/bcb-sgs_YYYY-MM/ids.txt)"
+        ),
+    )
+    extract_ids_parser.set_defaults(func=handle_extract_ids)
 
     # metadata-bulk
     meta_bulk_parser = subparsers.add_parser(

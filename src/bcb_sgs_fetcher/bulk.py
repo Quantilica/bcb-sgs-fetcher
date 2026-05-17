@@ -265,6 +265,78 @@ def fetch_metadata_bulk(
     return successful, failed
 
 
+def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
+    """Extract all series IDs from downloaded HTML files in *data_dir*.
+
+    Reads series listing pages inside ``arvore-grupos`` subdirectories
+    and all ``series-desativadas`` pages. Returns a sorted list of
+    unique IDs.
+
+    This is the equivalent of ``sgs-process index`` in bcb-sgs-metadata-db:
+    it bridges the gap between ``arvore-grupos`` / ``series-desativadas``
+    downloads and ``metadata-bulk``.
+    """
+    ids: set[int] = set()
+
+    arvore_dir = data_dir / "arvore-grupos"
+    if not arvore_dir.exists():
+        logger.warning("Diretório não encontrado: %s", arvore_dir)
+    else:
+        series_files = [
+            f
+            for f in sorted(arvore_dir.rglob("*.html"))
+            if f.parent != arvore_dir
+        ]
+        logger.info(
+            "%d arquivo(s) de séries em %s",
+            len(series_files),
+            arvore_dir,
+        )
+        for html_file in series_files:
+            try:
+                soup = BeautifulSoup(
+                    html_file.read_bytes().decode("latin-1"), "lxml"
+                )
+                table = soup.select_one("table#tabelaSeries")
+                if table is None:
+                    continue
+                for row in table_utils.extract_table_data(table):
+                    ids.add(row.series_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse %s: %s", html_file, exc
+                )
+
+    desativ_dir = data_dir / "series-desativadas"
+    if not desativ_dir.exists():
+        logger.warning("Diretório não encontrado: %s", desativ_dir)
+    else:
+        desativ_files = sorted(
+            desativ_dir.glob("series-desativadas_*.html")
+        )
+        logger.info(
+            "%d arquivo(s) de séries desativadas em %s",
+            len(desativ_files),
+            desativ_dir,
+        )
+        for html_file in desativ_files:
+            try:
+                soup = BeautifulSoup(
+                    html_file.read_bytes().decode("latin-1"), "lxml"
+                )
+                table = soup.select_one("table#tabelaSeries")
+                if table is None:
+                    continue
+                for row in table_utils.extract_table_data(table):
+                    ids.add(row.series_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse %s: %s", html_file, exc
+                )
+
+    return sorted(ids)
+
+
 def _fetch_one_metadata(
     series_id: int,
     scraper: ScraperClient,

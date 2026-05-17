@@ -71,11 +71,55 @@ quantilica fetch bcb-sgs search "câmbio"
 # Baixar dados de uma série
 bcb-sgs-fetcher fetch 1 --frequency D --output ./dados
 
-# Baixar metadados
+# Baixar metadados de uma série específica
 bcb-sgs-fetcher metadata 1 --output ./dados
 
 # Buscar séries por texto
 bcb-sgs-fetcher search "taxa selic"
+```
+
+### Pipeline completo de metadados em lote
+
+Para baixar e processar metadados de **todas** as séries do SGS, execute os
+quatro comandos abaixo em sequência. Cada passo grava arquivos em
+`<output>/bcb-sgs_YYYY-MM/` e os passos seguintes consomem o que o anterior
+produziu.
+
+```bash
+# 1. Baixa a árvore de grupos e as listagens de séries por grupo
+bcb-sgs-fetcher arvore-grupos -o /data/bcb-sgs
+
+# 2. Baixa as páginas de séries desativadas
+bcb-sgs-fetcher series-desativadas -o /data/bcb-sgs
+
+# 3. Extrai todos os IDs de séries dos HTMLs baixados nos passos 1 e 2
+#    e salva em <output>/bcb-sgs_YYYY-MM/ids.txt
+bcb-sgs-fetcher extract-ids -o /data/bcb-sgs
+
+# 4. Baixa e parseia os metadados de cada série
+bcb-sgs-fetcher metadata-bulk --ids-file /data/bcb-sgs/bcb-sgs_YYYY-MM/ids.txt \
+    -o /data/bcb-sgs
+```
+
+Os passos 1 e 2 são retomáveis: arquivos já existentes no disco são ignorados.
+O passo 4 também é retomável: séries cujos HTMLs já foram salvos não são
+rebaixadas.
+
+Por padrão `arvore-grupos`, `series-desativadas` e `metadata-bulk` aguardam
+10 segundos entre requisições (`--sleeptime`). Para ajustar:
+
+```bash
+bcb-sgs-fetcher arvore-grupos -o /data/bcb-sgs --sleeptime 5
+```
+
+O caminho do `--ids-file` no passo 4 inclui o mês corrente; substitua
+`YYYY-MM` pelo valor real (ex.: `2026-05`) ou use o valor padrão gerado pelo
+passo 3 diretamente:
+
+```bash
+bcb-sgs-fetcher metadata-bulk \
+    --ids-file /data/bcb-sgs/bcb-sgs_$(date +%Y-%m)/ids.txt \
+    -o /data/bcb-sgs
 ```
 
 ## API Python
