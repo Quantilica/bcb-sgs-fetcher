@@ -1,7 +1,7 @@
 """Optional filesystem helpers for caching scraped HTML/JSON.
 
 This module is intentionally tiny and stateless. The caller passes the
-target ``Path`` explicitly — there is no module-level ``DATA_DIR``.
+target ``Path`` explicitly.
 """
 
 import datetime as dt
