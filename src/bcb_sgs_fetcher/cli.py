@@ -157,7 +157,12 @@ def handle_pipeline(args: argparse.Namespace) -> None:
             "Nenhum ID extraído — verifique os erros acima."
         )
         sys.exit(1)
-    logger.info("%d IDs únicos extraídos", len(ids))
+    ids_file = data_dir / "ids.txt"
+    ids_file.parent.mkdir(parents=True, exist_ok=True)
+    ids_file.write_text("\n".join(str(i) for i in ids) + "\n")
+    logger.info(
+        "%d IDs únicos extraídos, salvos em %s", len(ids), ids_file
+    )
 
     logger.info("=== Passo 4/4: metadados ===")
     scraper = ScraperClient()
