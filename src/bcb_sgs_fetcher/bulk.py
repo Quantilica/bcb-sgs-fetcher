@@ -10,6 +10,7 @@ wrapper is needed here.
 
 import dataclasses
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -26,6 +27,7 @@ def fetch_arvore_grupos(
     scraper: ScraperClient,
     dest_dir: Path,
     sleeptime: float = 10,
+    on_grupo: Callable[[str, int, int], None] | None = None,
 ) -> None:
     """Download the full group tree and paginated series listings.
 
@@ -42,22 +44,29 @@ def fetch_arvore_grupos(
     soup = BeautifulSoup(html.decode("latin-1"), "lxml")
     table = soup.find("table")
     grupo_links = ag_reader.extract_arvore_grupos(table)
+    total_grupos = len(grupo_links)
 
-    for link in grupo_links:
+    for done, link in enumerate(grupo_links, 1):
         id_grupo = int(link.hd_oid_grupo_selecionado)
         seq_grupo = int(link.hd_seq_grupo_selecionado)
         nome = link.nome
         dest_file = dest_dir / f"{id_grupo:04d}-{nome}.html"
         if dest_file.exists():
             logger.debug("Skipping %s (already exists)", dest_file)
+            if on_grupo is not None:
+                on_grupo(nome, done, total_grupos)
             continue
-        logger.info("Fetching grupo: %s", nome)
+        logger.debug("Fetching grupo: %s", nome)
         try:
             content = scraper.get_arvore_grupo(id_grupo, seq_grupo)
             storage.save_bytes(content, dest_file)
         except Exception as exc:
             logger.error("Failed to fetch grupo %s: %s", nome, exc)
+            if on_grupo is not None:
+                on_grupo(nome, done, total_grupos)
             continue
+        if on_grupo is not None:
+            on_grupo(nome, done, total_grupos)
         time.sleep(sleeptime)
 
     for file in sorted(dest_dir.glob("*-*.html")):
@@ -137,7 +146,7 @@ def _fetch_grupo_series_pages(
                     exc,
                 )
                 return
-        logger.info(
+        logger.debug(
             "Fetching page %d/%d for grupo %s",
             page,
             n_pages,
@@ -161,6 +170,7 @@ def fetch_series_desativadas(
     scraper: ScraperClient,
     dest_dir: Path,
     sleeptime: float = 10,
+    on_page: Callable[[int, int], None] | None = None,
 ) -> None:
     """Download all deactivated-series pages (paginated).
 
@@ -173,7 +183,9 @@ def fetch_series_desativadas(
 
     soup = BeautifulSoup(content.decode("latin-1"), "lxml")
     n_pages = table_utils.get_n_pages(soup)
-    logger.info("Found %d pages of disabled series", n_pages)
+    logger.debug("Found %d pages of disabled series", n_pages)
+    if on_page is not None:
+        on_page(1, n_pages)
 
     if n_pages == 1:
         return
@@ -184,14 +196,18 @@ def fetch_series_desativadas(
         dest_file = dest_dir / f"series-desativadas_{page:03d}.html"
         if dest_file.exists():
             logger.debug("Skipping page %d (already exists)", page)
+            if on_page is not None:
+                on_page(page, n_pages)
             continue
         try:
             content = scraper.change_page(page)
             storage.save_bytes(content, dest_file)
-            logger.info("Saved page %d/%d", page, n_pages)
+            logger.debug("Saved page %d/%d", page, n_pages)
         except Exception as exc:
             logger.error("Failed to fetch page %d: %s", page, exc)
             continue
+        if on_page is not None:
+            on_page(page, n_pages)
         time.sleep(sleeptime)
 
 
@@ -202,6 +218,9 @@ def fetch_metadata_bulk(
     sleeptime: float = 10,
     max_session_retries: int = 3,
     skip_existing: bool = False,
+    on_progress: (
+        Callable[[int, int, int, int, int], None] | None
+    ) = None,
 ) -> tuple[int, int]:
     """Download and parse metadata for a list of series IDs.
 
@@ -228,15 +247,8 @@ def fetch_metadata_bulk(
         if skip_existing and (dest_dir / f"{series_id:06d}.json").exists():
             skipped += 1
             processed += 1
-            if processed % 100 == 0:
-                logger.info(
-                    "Progresso: %d/%d séries (%d OK, %d falhas, %d puladas)",
-                    processed,
-                    total,
-                    successful,
-                    failed,
-                    skipped,
-                )
+            if on_progress is not None:
+                on_progress(processed, total, successful, failed, skipped)
             continue
         session_retry = 0
         while session_retry < max_session_retries:
@@ -277,15 +289,8 @@ def fetch_metadata_bulk(
                     failed += 1
 
         processed += 1
-        if processed % 100 == 0:
-            logger.info(
-                "Progresso: %d/%d séries (%d OK, %d falhas, %d puladas)",
-                processed,
-                total,
-                successful,
-                failed,
-                skipped,
-            )
+        if on_progress is not None:
+            on_progress(processed, total, successful, failed, skipped)
 
     logger.info(
         "Completed: %d successful, %d failed, %d skipped",
@@ -318,7 +323,7 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
             for f in sorted(arvore_dir.rglob("*.html"))
             if f.parent != arvore_dir
         ]
-        logger.info(
+        logger.debug(
             "%d arquivo(s) de séries em %s",
             len(series_files),
             arvore_dir,
@@ -345,7 +350,7 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
         desativ_files = sorted(
             desativ_dir.glob("series-desativadas_*.html")
         )
-        logger.info(
+        logger.debug(
             "%d arquivo(s) de séries desativadas em %s",
             len(desativ_files),
             desativ_dir,
@@ -384,7 +389,7 @@ def _fetch_one_metadata(
             FULL: dest_full.read_bytes(),
         }
     else:
-        logger.info("Fetching metadata for series %d", series_id)
+        logger.debug("Fetching metadata for series %d", series_id)
         html = scraper.request_metadata_html(series_id)
         storage.save_bytes(html[BASIC], dest_basic)
         storage.save_bytes(html[FULL], dest_full)
