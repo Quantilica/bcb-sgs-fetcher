@@ -97,7 +97,11 @@ def parse_metadata_basic(html: str | bytes) -> SeriesMetadataBasic:
     """Parse the "Dados básicos da série" iframe HTML."""
     soup = BeautifulSoup(html, "lxml")
     table = soup.find("table")
+    if table is None:
+        raise ValueError("metadata table not found — server may have returned an error page")
     rows = table.find_all("tr")
+    if not rows:
+        raise ValueError("metadata table has no rows — server may have returned an error page")
     first_row = rows[0]
     series_id = first_row.text.replace("Dados básicos da série ", "").strip()
 
@@ -105,7 +109,7 @@ def parse_metadata_basic(html: str | bytes) -> SeriesMetadataBasic:
         cells = tr.find_all("td")
         for i in range(0, len(cells), 2):
             key = clean_cell_text(cells[i].text)
-            if key == "":
+            if key == "" or i + 1 >= len(cells):
                 continue
             value = cells[i + 1]
             yield key, value

@@ -43,8 +43,7 @@ class ScraperClient:
     """Maintains an ``httpx.Client`` session against the BCB SGS website.
 
     Args:
-        timeout: HTTP timeout in seconds. Defaults to 600 (the default
-            timeout in seconds (metadata iframes can be slow).
+        timeout: HTTP timeout in seconds. Defaults to 30.
         language: ``"pt"`` (default) or ``"en"`` — selects the locale of
             the resulting HTML pages.
         transport: Optional ``httpx`` transport override (useful for
@@ -53,7 +52,7 @@ class ScraperClient:
 
     def __init__(
         self,
-        timeout: float = 600,
+        timeout: float = 30,
         language: str = "pt",
         transport: httpx.BaseTransport | None = None,
     ) -> None:

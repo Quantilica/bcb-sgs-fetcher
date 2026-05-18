@@ -219,6 +219,8 @@ def fetch_metadata_bulk(
     """
     successful = 0
     failed = 0
+    total = len(series_ids)
+    processed = 0
 
     for series_id in sorted(series_ids):
         session_retry = 0
@@ -258,6 +260,16 @@ def fetch_metadata_bulk(
                         max_session_retries,
                     )
                     failed += 1
+
+        processed += 1
+        if processed % 100 == 0:
+            logger.info(
+                "Progresso: %d/%d séries (%d OK, %d falhas)",
+                processed,
+                total,
+                successful,
+                failed,
+            )
 
     logger.info(
         "Completed: %d successful, %d failed", successful, failed
@@ -369,6 +381,8 @@ def _fetch_one_metadata(
         )
         dest_basic.unlink(missing_ok=True)
         dest_full.unlink(missing_ok=True)
+        if downloaded:
+            time.sleep(sleeptime)
         return False
 
     if basic.series_id != series_id:
@@ -379,6 +393,8 @@ def _fetch_one_metadata(
         )
         dest_basic.unlink(missing_ok=True)
         dest_full.unlink(missing_ok=True)
+        if downloaded:
+            time.sleep(sleeptime)
         return False
 
     try:
@@ -389,6 +405,8 @@ def _fetch_one_metadata(
             series_id,
             exc,
         )
+        if downloaded:
+            time.sleep(sleeptime)
         return False
 
     metadata = {
