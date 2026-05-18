@@ -201,6 +201,7 @@ def fetch_metadata_bulk(
     dest_dir: Path,
     sleeptime: float = 10,
     max_session_retries: int = 3,
+    skip_existing: bool = False,
 ) -> tuple[int, int]:
     """Download and parse metadata for a list of series IDs.
 
@@ -219,10 +220,24 @@ def fetch_metadata_bulk(
     """
     successful = 0
     failed = 0
+    skipped = 0
     total = len(series_ids)
     processed = 0
 
     for series_id in sorted(series_ids):
+        if skip_existing and (dest_dir / f"{series_id:06d}.json").exists():
+            skipped += 1
+            processed += 1
+            if processed % 100 == 0:
+                logger.info(
+                    "Progresso: %d/%d séries (%d OK, %d falhas, %d puladas)",
+                    processed,
+                    total,
+                    successful,
+                    failed,
+                    skipped,
+                )
+            continue
         session_retry = 0
         while session_retry < max_session_retries:
             try:
@@ -264,15 +279,19 @@ def fetch_metadata_bulk(
         processed += 1
         if processed % 100 == 0:
             logger.info(
-                "Progresso: %d/%d séries (%d OK, %d falhas)",
+                "Progresso: %d/%d séries (%d OK, %d falhas, %d puladas)",
                 processed,
                 total,
                 successful,
                 failed,
+                skipped,
             )
 
     logger.info(
-        "Completed: %d successful, %d failed", successful, failed
+        "Completed: %d successful, %d failed, %d skipped",
+        successful,
+        failed,
+        skipped,
     )
     return successful, failed
 

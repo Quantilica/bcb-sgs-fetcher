@@ -106,7 +106,11 @@ def handle_metadata_bulk(args: argparse.Namespace) -> None:
     scraper = ScraperClient()
     try:
         successful, failed = bulk.fetch_metadata_bulk(
-            ids, scraper, dest_dir, sleeptime=args.sleeptime
+            ids,
+            scraper,
+            dest_dir,
+            sleeptime=args.sleeptime,
+            skip_existing=args.skip_existing,
         )
     finally:
         scraper.close()
@@ -172,6 +176,7 @@ def handle_pipeline(args: argparse.Namespace) -> None:
             scraper,
             data_dir / "metadata",
             sleeptime=args.sleeptime,
+            skip_existing=args.skip_existing,
         )
     finally:
         scraper.close()
@@ -245,6 +250,12 @@ def set_parser() -> argparse.ArgumentParser:
         type=float,
         default=10.0,
         help="Segundos de espera entre requisições (padrão: 10)",
+    )
+    pipeline_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=False,
+        help="Pular séries que já têm JSON de metadados no disco",
     )
     pipeline_parser.set_defaults(func=handle_pipeline)
 
@@ -389,6 +400,12 @@ def set_parser() -> argparse.ArgumentParser:
         type=float,
         default=10.0,
         help="Segundos de espera entre requisições",
+    )
+    meta_bulk_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=False,
+        help="Pular séries que já têm JSON de metadados no disco",
     )
     meta_bulk_parser.set_defaults(func=handle_metadata_bulk)
 

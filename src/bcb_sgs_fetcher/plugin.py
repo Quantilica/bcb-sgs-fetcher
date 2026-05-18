@@ -183,6 +183,13 @@ def metadata_bulk_cmd(
             help="Segundos de espera entre requisições",
         ),
     ] = 10.0,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing",
+            help="Pular séries que já têm JSON de metadados no disco",
+        ),
+    ] = False,
     verbose: Annotated[
         bool, typer.Option("--verbose", help="Logs detalhados")
     ] = False,
@@ -211,11 +218,127 @@ def metadata_bulk_cmd(
     scraper = ScraperClient()
     try:
         successful, failed = bulk.fetch_metadata_bulk(
-            ids, scraper, dest_dir, sleeptime=sleeptime
+            ids,
+            scraper,
+            dest_dir,
+            sleeptime=sleeptime,
+            skip_existing=skip_existing,
         )
     finally:
         scraper.close()
     typer.echo(f"Completo: {successful} OK, {failed} falhas.")
+
+
+@app.command("extract-ids")
+def extract_ids_cmd(
+    output: Annotated[
+        Path,
+        typer.Option("-o", "--output", help="Diretório de dados"),
+    ] = _DEFAULT_OUTPUT,
+    ids_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--ids-file",
+            help="Arquivo de saída (padrão: <output>/bcb-sgs_YYYY-MM/ids.txt)",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", help="Logs detalhados")
+    ] = False,
+) -> None:
+    """Extrair IDs de séries dos HTMLs baixados (arvore-grupos + series-desativadas)."""
+    import datetime as dt
+
+    configure_cli_logging(verbose=verbose)
+    data_dir = storage.get_data_dir(output, dt.date.today())
+    ids = bulk.extract_ids_from_data_dir(data_dir)
+    if not ids:
+        typer.echo(f"Nenhum ID encontrado em {data_dir}", err=True)
+        raise typer.Exit(code=1)
+    outfile = ids_file or (data_dir / "ids.txt")
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+    outfile.write_text("\n".join(str(i) for i in ids) + "\n")
+    typer.echo(f"Salvos {len(ids)} IDs únicos em {outfile}")
+
+
+@app.command("pipeline")
+def pipeline_cmd(
+    output: Annotated[
+        Path,
+        typer.Option("-o", "--output", help="Diretório de saída"),
+    ] = _DEFAULT_OUTPUT,
+    sleeptime: Annotated[
+        float,
+        typer.Option(
+            "--sleeptime",
+            help="Segundos de espera entre requisições (padrão: 10)",
+        ),
+    ] = 10.0,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing",
+            help="Pular séries que já têm JSON de metadados no disco",
+        ),
+    ] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", help="Logs detalhados")
+    ] = False,
+) -> None:
+    """Executar o pipeline completo de metadados (arvore-grupos -> series-desativadas -> extract-ids -> metadata-bulk)."""
+    import datetime as dt
+    import sys
+
+    configure_cli_logging(verbose=verbose)
+    data_dir = storage.get_data_dir(output, dt.date.today())
+
+    typer.echo("=== Passo 1/4: árvore de grupos ===")
+    with ScraperClient() as scraper:
+        try:
+            bulk.fetch_arvore_grupos(
+                scraper, data_dir / "arvore-grupos", sleeptime=sleeptime
+            )
+        except Exception as exc:
+            typer.echo(f"Passo 1 encerrado com erro: {exc}", err=True)
+
+    typer.echo("=== Passo 2/4: séries desativadas ===")
+    with ScraperClient() as scraper:
+        try:
+            bulk.fetch_series_desativadas(
+                scraper,
+                data_dir / "series-desativadas",
+                sleeptime=sleeptime,
+            )
+        except Exception as exc:
+            typer.echo(f"Passo 2 encerrado com erro: {exc}", err=True)
+
+    typer.echo("=== Passo 3/4: extração de IDs ===")
+    ids = bulk.extract_ids_from_data_dir(data_dir)
+    if not ids:
+        typer.echo("Nenhum ID extraído — verifique os erros acima.", err=True)
+        raise typer.Exit(code=1)
+    ids_file = data_dir / "ids.txt"
+    ids_file.parent.mkdir(parents=True, exist_ok=True)
+    ids_file.write_text("\n".join(str(i) for i in ids) + "\n")
+    typer.echo(f"{len(ids)} IDs únicos extraídos, salvos em {ids_file}")
+
+    typer.echo("=== Passo 4/4: metadados ===")
+    scraper = ScraperClient()
+    try:
+        successful, failed = bulk.fetch_metadata_bulk(
+            ids,
+            scraper,
+            data_dir / "metadata",
+            sleeptime=sleeptime,
+            skip_existing=skip_existing,
+        )
+    finally:
+        scraper.close()
+
+    if failed:
+        typer.echo(f"Pipeline concluído: {successful} OK, {failed} falha(s).")
+    else:
+        typer.echo(f"Pipeline concluído: {successful} séries processadas com sucesso.")
 
 
 @app.command("search")
