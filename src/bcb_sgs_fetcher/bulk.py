@@ -397,6 +397,16 @@ def _fetch_one_metadata(
 
     try:
         basic = parse_metadata_basic(html[BASIC].decode("latin-1"))
+    except ValueError as exc:
+        logger.error(
+            "Structural error parsing basic metadata for series %d "
+            "(possible session error): %s",
+            series_id,
+            exc,
+        )
+        dest_basic.unlink(missing_ok=True)
+        dest_full.unlink(missing_ok=True)
+        raise
     except Exception as exc:
         logger.error(
             "Error parsing basic metadata for series %d: %s",
@@ -423,6 +433,16 @@ def _fetch_one_metadata(
 
     try:
         full = parse_metadata_full(html[FULL].decode("latin-1"))
+    except ValueError as exc:
+        logger.error(
+            "Structural error parsing full metadata for series %d "
+            "(possible session error): %s",
+            series_id,
+            exc,
+        )
+        dest_basic.unlink(missing_ok=True)
+        dest_full.unlink(missing_ok=True)
+        raise
     except Exception as exc:
         logger.error(
             "Error parsing full metadata for series %d: %s",

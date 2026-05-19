@@ -246,6 +246,10 @@ def parse_metadata_full(html: str | bytes) -> SeriesMetadataFull:
     """Parse the "Metadados" iframe HTML."""
     soup = BeautifulSoup(html, "lxml")
     tables = soup.select("center > table")
+    if not tables or len(tables) < 5:
+        raise ValueError(
+            "metadata full table not found — server may have returned an error page"
+        )
     return SeriesMetadataFull(
         last_update=_get_last_update(tables[0]),
         provider_data=_get_provider_data(tables[1]),
