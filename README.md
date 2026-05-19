@@ -52,39 +52,45 @@ print(full.last_update, len(full.provider_data))
 
 ## CLI
 
+Os comandos são agrupados em dois eixos: `series` (operações por série) e
+`catalogo` (catálogo de metadados).
+
 ### Via quantilica-cli
 
 ```bash
 # Baixar dados de uma série
-quantilica fetch bcb-sgs fetch 1 -f D -o ./dados
+quantilica fetch bcb-sgs series sync 1 -f D -o ./dados
 
 # Baixar metadados de uma série
-quantilica fetch bcb-sgs metadata 1 -o ./dados
+quantilica fetch bcb-sgs series metadata 1 -o ./dados
 
 # Buscar séries por texto
-quantilica fetch bcb-sgs search "câmbio"
+quantilica fetch bcb-sgs series search "câmbio"
+
+# Sincronizar o catálogo completo de metadados
+quantilica fetch bcb-sgs catalogo sync
 ```
 
 ### CLI standalone
 
 ```bash
 # Baixar dados de uma série
-bcb-sgs-fetcher fetch 1 --frequency D --output ./dados
+bcb-sgs-fetcher series sync 1 --frequency D --output ./dados
 
 # Baixar metadados de uma série específica
-bcb-sgs-fetcher metadata 1 --output ./dados
+bcb-sgs-fetcher series metadata 1 --output ./dados
 
 # Buscar séries por texto
-bcb-sgs-fetcher search "taxa selic"
+bcb-sgs-fetcher series search "taxa selic"
 ```
 
-### Pipeline completo de metadados em lote
+### Sincronização completa do catálogo de metadados
 
 Para baixar e processar metadados de **todas** as séries do SGS, use o
-comando `pipeline`:
+comando `catalogo sync`:
 
 ```bash
-bcb-sgs-fetcher pipeline -o /data/bcb-sgs
+bcb-sgs-fetcher catalogo sync -o /data/bcb-sgs
 ```
 
 Ele executa automaticamente os quatro passos em sequência, cada um com sua
@@ -102,7 +108,7 @@ passos, então basta reexecutar o mesmo comando após uma interrupção.
 Para ajustar o intervalo entre requisições (padrão: 10 segundos):
 
 ```bash
-bcb-sgs-fetcher pipeline -o /data/bcb-sgs --sleeptime 5
+bcb-sgs-fetcher catalogo sync -o /data/bcb-sgs --sleeptime 5
 ```
 
 #### Passos individuais
@@ -112,16 +118,16 @@ parciais), os subcomandos individuais aceitam os mesmos parâmetros:
 
 ```bash
 # Apenas a árvore de grupos
-bcb-sgs-fetcher arvore-grupos -o /data/bcb-sgs
+bcb-sgs-fetcher catalogo arvore-grupos -o /data/bcb-sgs
 
 # Apenas séries desativadas
-bcb-sgs-fetcher series-desativadas -o /data/bcb-sgs
+bcb-sgs-fetcher catalogo series-desativadas -o /data/bcb-sgs
 
 # Apenas extração de IDs (grava em <output>/bcb-sgs_YYYY-MM/ids.txt)
-bcb-sgs-fetcher extract-ids -o /data/bcb-sgs
+bcb-sgs-fetcher catalogo extract-ids -o /data/bcb-sgs
 
 # Apenas metadados, a partir de um arquivo de IDs
-bcb-sgs-fetcher metadata-bulk \
+bcb-sgs-fetcher catalogo metadata-bulk \
     --ids-file /data/bcb-sgs/bcb-sgs_YYYY-MM/ids.txt \
     -o /data/bcb-sgs
 ```

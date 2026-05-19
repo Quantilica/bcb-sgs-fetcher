@@ -35,6 +35,12 @@ from bcb_sgs_fetcher import (
 )
 
 app = typer.Typer(help="Dados do SGS/BCB (séries temporais).")
+series_sub = typer.Typer(help="Operações por série (dados, metadados, busca).")
+catalogo_sub = typer.Typer(
+    help="Catálogo de metadados do SGS/BCB (sync completo e passos)."
+)
+app.add_typer(series_sub, name="series")
+app.add_typer(catalogo_sub, name="catalogo")
 console = Console()
 
 _DEFAULT_OUTPUT = Path("/data/bcb-sgs")
@@ -69,7 +75,7 @@ def _make_progress(*extra_cols: object) -> Progress:
     )
 
 
-@app.command("fetch")
+@series_sub.command("sync")
 def fetch(
     series_id: Annotated[
         int,
@@ -125,7 +131,7 @@ def fetch(
     )
 
 
-@app.command("metadata")
+@series_sub.command("metadata")
 def metadata(
     series_id: Annotated[
         int,
@@ -181,7 +187,7 @@ def metadata(
     )
 
 
-@app.command("arvore-grupos")
+@catalogo_sub.command("arvore-grupos")
 def arvore_grupos_cmd(
     output: Annotated[
         Path,
@@ -233,7 +239,7 @@ def arvore_grupos_cmd(
     )
 
 
-@app.command("series-desativadas")
+@catalogo_sub.command("series-desativadas")
 def series_desativadas_cmd(
     output: Annotated[
         Path,
@@ -278,7 +284,7 @@ def series_desativadas_cmd(
     )
 
 
-@app.command("metadata-bulk")
+@catalogo_sub.command("metadata-bulk")
 def metadata_bulk_cmd(
     ids_file: Annotated[
         Path | None,
@@ -384,7 +390,7 @@ def metadata_bulk_cmd(
         )
 
 
-@app.command("extract-ids")
+@catalogo_sub.command("extract-ids")
 def extract_ids_cmd(
     output: Annotated[
         Path,
@@ -420,7 +426,7 @@ def extract_ids_cmd(
     )
 
 
-@app.command("pipeline")
+@catalogo_sub.command("sync")
 def pipeline_cmd(
     output: Annotated[
         Path,
@@ -444,7 +450,7 @@ def pipeline_cmd(
         bool, typer.Option("--verbose", help="Logs detalhados")
     ] = False,
 ) -> None:
-    """Pipeline completo de metadados do SGS/BCB (4 passos)."""
+    """Sincronizar o catálogo completo de metadados do SGS/BCB (4 passos)."""
     _setup_logging(verbose)
     data_dir = storage.get_data_dir(output, dt.date.today())
 
@@ -578,7 +584,7 @@ def pipeline_cmd(
     console.print(summary)
 
 
-@app.command("search")
+@series_sub.command("search")
 def search(
     text: Annotated[str, typer.Argument(help="Texto de busca")],
     verbose: Annotated[

@@ -230,12 +230,74 @@ def set_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(title="commands", dest="command")
 
-    # pipeline
-    pipeline_parser = subparsers.add_parser(
-        "pipeline",
+    # === grupo: series ===
+    series_parser = subparsers.add_parser(
+        "series", help="Operações por série (dados, metadados, busca)"
+    )
+    series_sub = series_parser.add_subparsers(
+        title="series", dest="subcommand", required=True
+    )
+
+    # series sync
+    sync_parser = series_sub.add_parser(
+        "sync", help="Baixar dados de uma série temporal"
+    )
+    sync_parser.add_argument(
+        "series_id", type=int, help="ID da série no SGS/BCB"
+    )
+    sync_parser.add_argument(
+        "-f",
+        "--frequency",
+        default=None,
+        help="Periodicidade (D, S, M, T, Qd, A)",
+    )
+    sync_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de saída",
+    )
+    sync_parser.set_defaults(func=handle_fetch)
+
+    # series metadata
+    meta_parser = series_sub.add_parser(
+        "metadata", help="Baixar metadados de uma série"
+    )
+    meta_parser.add_argument(
+        "series_id", type=int, help="ID da série no SGS/BCB"
+    )
+    meta_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=_DEFAULT_OUTPUT,
+        help="Diretório de saída",
+    )
+    meta_parser.set_defaults(func=handle_metadata)
+
+    # series search
+    search_parser = series_sub.add_parser(
+        "search", help="Buscar séries por texto"
+    )
+    search_parser.add_argument("text", help="Texto de busca")
+    search_parser.set_defaults(func=handle_search)
+
+    # === grupo: catalogo ===
+    catalogo_parser = subparsers.add_parser(
+        "catalogo", help="Catálogo de metadados do SGS/BCB"
+    )
+    catalogo_sub = catalogo_parser.add_subparsers(
+        title="catalogo", dest="subcommand", required=True
+    )
+
+    # catalogo sync (pipeline completo)
+    pipeline_parser = catalogo_sub.add_parser(
+        "sync",
         help=(
-            "Executar o pipeline completo de metadados"
-            " (arvore-grupos -> series-desativadas -> extract-ids -> metadata-bulk)"
+            "Sincronizar o catálogo completo de metadados"
+            " (arvore-grupos -> series-desativadas -> extract-ids"
+            " -> metadata-bulk)"
         ),
     )
     pipeline_parser.add_argument(
@@ -259,53 +321,8 @@ def set_parser() -> argparse.ArgumentParser:
     )
     pipeline_parser.set_defaults(func=handle_pipeline)
 
-    # fetch
-    fetch_parser = subparsers.add_parser(
-        "fetch", help="Baixar dados de uma série temporal"
-    )
-    fetch_parser.add_argument(
-        "series_id", type=int, help="ID da série no SGS/BCB"
-    )
-    fetch_parser.add_argument(
-        "-f",
-        "--frequency",
-        default=None,
-        help="Periodicidade (D, S, M, T, Qd, A)",
-    )
-    fetch_parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=_DEFAULT_OUTPUT,
-        help="Diretório de saída",
-    )
-    fetch_parser.set_defaults(func=handle_fetch)
-
-    # metadata
-    meta_parser = subparsers.add_parser(
-        "metadata", help="Baixar metadados de uma série"
-    )
-    meta_parser.add_argument(
-        "series_id", type=int, help="ID da série no SGS/BCB"
-    )
-    meta_parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=_DEFAULT_OUTPUT,
-        help="Diretório de saída",
-    )
-    meta_parser.set_defaults(func=handle_metadata)
-
-    # search
-    search_parser = subparsers.add_parser(
-        "search", help="Buscar séries por texto"
-    )
-    search_parser.add_argument("text", help="Texto de busca")
-    search_parser.set_defaults(func=handle_search)
-
-    # arvore-grupos
-    arvore_parser = subparsers.add_parser(
+    # catalogo arvore-grupos
+    arvore_parser = catalogo_sub.add_parser(
         "arvore-grupos",
         help="Baixar árvore de grupos e listas de séries",
     )
@@ -324,8 +341,8 @@ def set_parser() -> argparse.ArgumentParser:
     )
     arvore_parser.set_defaults(func=handle_arvore_grupos)
 
-    # series-desativadas
-    desativ_parser = subparsers.add_parser(
+    # catalogo series-desativadas
+    desativ_parser = catalogo_sub.add_parser(
         "series-desativadas",
         help="Baixar todas as séries desativadas",
     )
@@ -344,8 +361,8 @@ def set_parser() -> argparse.ArgumentParser:
     )
     desativ_parser.set_defaults(func=handle_series_desativadas)
 
-    # extract-ids
-    extract_ids_parser = subparsers.add_parser(
+    # catalogo extract-ids
+    extract_ids_parser = catalogo_sub.add_parser(
         "extract-ids",
         help=(
             "Extrair IDs de séries dos HTMLs baixados"
@@ -357,7 +374,7 @@ def set_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=_DEFAULT_OUTPUT,
-        help="Diretório de dados (mesmo usado em arvore-grupos e series-desativadas)",
+        help="Diretório de dados (arvore-grupos e series-desativadas)",
     )
     extract_ids_parser.add_argument(
         "--ids-file",
@@ -370,8 +387,8 @@ def set_parser() -> argparse.ArgumentParser:
     )
     extract_ids_parser.set_defaults(func=handle_extract_ids)
 
-    # metadata-bulk
-    meta_bulk_parser = subparsers.add_parser(
+    # catalogo metadata-bulk
+    meta_bulk_parser = catalogo_sub.add_parser(
         "metadata-bulk",
         help="Baixar metadados de múltiplas séries",
     )
