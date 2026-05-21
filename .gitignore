@@ -1,13 +1,42 @@
-__pycache__
+# Build / packaging
+__pycache__/
+*.py[cod]
+*.egg-info/
 build/
 dist/
-*.egg-info/
+
+# Virtual envs e caches do uv
 .venv/
+.uv-cache/
+
+# Lockfile — libs não versionam uv.lock
+uv.lock
+
+# Caches de teste / lint / tipos
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 
-# Data
+# Cobertura
+.coverage
+.coverage.*
+htmlcov/
+
+# Editor / IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs e env locais
+*.log
+.env
+.env.local
+
+# Claude
+.claude/
+
+# Específico do repo
 data/
-
-# Config
 *.ini
