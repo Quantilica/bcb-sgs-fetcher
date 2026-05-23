@@ -19,9 +19,7 @@ def _make_transport(calls: list[tuple[str, str, bytes]]):
         calls.append(
             (request.method, str(request.url), bytes(request.content))
         )
-        return httpx.Response(
-            200, content=b"<html><body>ok</body></html>"
-        )
+        return httpx.Response(200, content=b"<html><body>ok</body></html>")
 
     return httpx.MockTransport(handler)
 
@@ -71,9 +69,7 @@ def test_get_grupos_principais_posts_recuperarGruposPrincipais():
         content = client.get_grupos_principais()
     assert content == b"<html><body>ok</body></html>"
     posts = [(m, u) for m, u, _ in calls if m == "POST"]
-    assert any(
-        "method=recuperarGruposPrincipais" in u for _, u in posts
-    )
+    assert any("method=recuperarGruposPrincipais" in u for _, u in posts)
 
 
 def test_change_page_sends_page_in_body():
@@ -90,3 +86,33 @@ def test_invalid_language_raises():
 
     with pytest.raises(ValueError):
         ScraperClient(language="fr")
+
+
+def test_retry_exhaustion_raises_retryerror(monkeypatch):
+    import pytest
+    from quantilica_core import retry as core_retry
+    from quantilica_core.retry import RetryError
+
+    # The retry decorator uses retry_call's default ``sleep``, bound to
+    # ``time.sleep`` at import time, so patching ``time.sleep`` globally
+    # has no effect. Replace the default to skip the real backoff waits.
+    monkeypatch.setitem(
+        core_retry.retry_call.__kwdefaults__,
+        "sleep",
+        lambda _delay: None,
+    )
+
+    posts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            posts.append(str(request.url))
+        return httpx.Response(500, content=b"boom")
+
+    transport = httpx.MockTransport(handler)
+    with ScraperClient(transport=transport) as client:
+        with pytest.raises(RetryError):
+            client.get_grupos_principais()
+
+    # Five attempts, each issuing one POST to localizarSeries.
+    assert len(posts) == 5

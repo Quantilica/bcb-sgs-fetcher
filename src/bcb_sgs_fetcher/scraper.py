@@ -3,17 +3,14 @@
 :class:`ScraperClient` is a thin context manager around ``httpx.Client``.
 It keeps a JSESSION cookie alive for the duration of the context and
 exposes methods that POST/GET against the SGS web pages. Each public
-method is wrapped with ``tenacity`` retries (exponential backoff,
-``httpx`` transport errors only).
+method is wrapped with ``quantilica-core`` retries (exponential
+backoff, ``httpx`` transport errors only).
 """
 
 from types import TracebackType
 
 import httpx
-from tenacity import retry
-from tenacity.retry import retry_if_exception_type
-from tenacity.stop import stop_after_attempt
-from tenacity.wait import wait_exponential
+from quantilica_core.retry import with_retry
 
 from . import logger
 from .constants import BASIC, FULL
@@ -30,12 +27,17 @@ METADADOS_BASICOS_URL = f"{CONSULTAR_METADADOS_URL}/cmiDadosBasicos.jsp"
 # GET cmiMetadados
 METADADOS_FULL_URL = f"{CONSULTAR_METADADOS_URL}/cmiMetadados.jsp"
 
-_RETRY_ON = retry_if_exception_type(
-    (
-        httpx.RequestError,
-        httpx.HTTPStatusError,
-        httpx.TimeoutException,
-    )
+_RETRY_EXCEPTIONS = (
+    httpx.RequestError,
+    httpx.HTTPStatusError,
+    httpx.TimeoutException,
+)
+
+_retry_http = with_retry(
+    attempts=5,
+    base_delay=5.0,
+    max_delay=300.0,
+    retry_exceptions=_RETRY_EXCEPTIONS,
 )
 
 
@@ -82,12 +84,7 @@ class ScraperClient:
         session.get(search_url, params=params)
         self.session = session
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def request_metadata_html(self, series_id: int) -> dict[str, bytes]:
         """Fetch the two metadata iframes for a series.
 
@@ -113,12 +110,7 @@ class ScraperClient:
         data[FULL] = r_full.content
         return data
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def get_series_desativadas(self) -> bytes:
         """Get the HTML of the deactivated-series listing."""
         logger.info("Getting series desativadas")
@@ -134,12 +126,7 @@ class ScraperClient:
         response.raise_for_status()
         return response.content
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def change_page(self, page: int) -> bytes:
         """Navigate the paginated series list to ``page``."""
         logger.info("Changing page to %s", page)
@@ -156,12 +143,7 @@ class ScraperClient:
         response.raise_for_status()
         return response.content
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def get_grupos_principais(self) -> bytes:
         """Get the HTML of the root group list."""
         logger.info("Getting grupos principais")
@@ -177,12 +159,7 @@ class ScraperClient:
         r.raise_for_status()
         return r.content
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def get_arvore_grupo(self, id_grupo: int, seq_grupo: int) -> bytes:
         """Get the tree of series of a group."""
         logger.info("Getting arvore grupo %s %s", id_grupo, seq_grupo)
@@ -197,12 +174,7 @@ class ScraperClient:
         r.raise_for_status()
         return r.content
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def get_grupo_series(self, id_grupo: int) -> bytes:
         """Get the series of a group."""
         logger.info("Getting grupo series %s", id_grupo)
@@ -219,12 +191,7 @@ class ScraperClient:
         r.raise_for_status()
         return r.content
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def get_series_by_fonte(self, fonte_id: int) -> bytes:
         """Get series listed for a "fonte" (source)."""
         logger.info("Getting series by fonte: %s", fonte_id)
@@ -241,12 +208,7 @@ class ScraperClient:
         r.raise_for_status()
         return r.content
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=5, max=300),
-        retry=_RETRY_ON,
-        reraise=True,
-    )
+    @_retry_http
     def search_series_by_text(self, text: str) -> bytes:
         """Search series by free text."""
         logger.info("Getting series by text %s", text)

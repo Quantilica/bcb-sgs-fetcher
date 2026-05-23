@@ -28,11 +28,9 @@ classifiers = [
 ]
 dependencies = [
     "beautifulsoup4>=4.12",
-    "httpx>=0.28.1",
     "lxml>=5.0",
     "markdownify>=0.13",
     "quantilica-core @ git+https://github.com/Quantilica/quantilica-core.git",
-    "tenacity>=9.1.2",
 ]
 
 [project.urls]

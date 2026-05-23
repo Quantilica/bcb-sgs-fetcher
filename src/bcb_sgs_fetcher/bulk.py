@@ -4,7 +4,7 @@ These functions implement the full metadata pipeline workflow so it
 can be reproduced using ``bcb-sgs-fetcher`` alone, without a database.
 
 Each :class:`~bcb_sgs_fetcher.scraper.ScraperClient` method already
-carries :mod:`tenacity` retry decorators, so no additional retry
+carries ``quantilica-core`` retry decorators, so no additional retry
 wrapper is needed here.
 """
 
