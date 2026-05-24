@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-import logging
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
-from rich.logging import RichHandler
+from quantilica_core.cli import (
+    get_console,
+    make_batch_progress,
+    setup_rich_logging,
+)
 from rich.panel import Panel
 from rich.progress import (
-    BarColumn,
     MofNCompleteColumn,
     Progress,
     SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
-    TimeRemainingColumn,
 )
 from rich.rule import Rule
 from rich.table import Table
@@ -41,38 +41,9 @@ catalogo_sub = typer.Typer(
 )
 app.add_typer(series_sub, name="series")
 app.add_typer(catalogo_sub, name="catalogo")
-console = Console()
+console = get_console()
 
 _DEFAULT_OUTPUT = Path("/data/bcb-sgs")
-
-
-def _setup_logging(verbose: bool) -> None:
-    """Configure logging via RichHandler to avoid breaking progress bars.
-
-    verbose=False → WARNING only (errors/warnings surface, no INFO noise).
-    verbose=True  → DEBUG through Rich console (properly interleaved).
-    """
-    level = logging.DEBUG if verbose else logging.WARNING
-    logging.basicConfig(
-        level=level,
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(console=console, show_path=False)],
-        force=True,
-    )
-
-
-def _make_progress(*extra_cols: object) -> Progress:
-    return Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        *extra_cols,
-        console=console,
-    )
 
 
 @series_sub.command("sync")
@@ -134,7 +105,7 @@ def fetch(
     ] = False,
 ) -> None:
     """Baixar dados de todas as séries (padrão), de uma ou de uma lista."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
 
     if series_id is not None and ids_file is not None:
         console.print(
@@ -157,7 +128,7 @@ def fetch(
         return
 
     try:
-        with _make_progress() as progress:
+        with make_batch_progress(console) as progress:
             task = progress.add_task(
                 "[cyan]0✓  0✗  0 skip[/cyan]", total=len(series_freqs)
             )
@@ -221,7 +192,7 @@ def metadata(
     ] = False,
 ) -> None:
     """Baixar metadados de uma série temporal do SGS/BCB."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
     with console.status(
         f"[cyan]Baixando metadados da série {series_id}...[/cyan]"
     ):
@@ -280,7 +251,7 @@ def arvore_grupos_cmd(
     ] = False,
 ) -> None:
     """Baixar a árvore de grupos e listas de séries do SGS/BCB."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
     dest_dir = (
         storage.get_data_dir(output, dt.date.today())
         / "arvore-grupos"
@@ -332,12 +303,12 @@ def series_desativadas_cmd(
     ] = False,
 ) -> None:
     """Baixar todas as séries desativadas do SGS/BCB."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
     dest_dir = (
         storage.get_data_dir(output, dt.date.today())
         / "series-desativadas"
     )
-    with _make_progress() as progress:
+    with make_batch_progress(console) as progress:
         task = progress.add_task(
             "[cyan]Séries desativadas[/cyan]", total=None
         )
@@ -398,7 +369,7 @@ def metadata_bulk_cmd(
     ] = False,
 ) -> None:
     """Baixar metadados de múltiplas séries do SGS/BCB."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
 
     ids: list[int] = list(series_id or [])
     if ids_file is not None:
@@ -418,7 +389,7 @@ def metadata_bulk_cmd(
     dest_dir = (
         storage.get_data_dir(output, dt.date.today()) / "metadata"
     )
-    with _make_progress() as progress:
+    with make_batch_progress(console) as progress:
         task = progress.add_task(
             "[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids)
         )
@@ -483,7 +454,7 @@ def extract_ids_cmd(
     ] = False,
 ) -> None:
     """Extrair IDs dos HTMLs baixados (arvore-grupos + series-desativadas)."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
     data_dir = storage.get_data_dir(output, dt.date.today())
     with console.status("[cyan]Extraindo IDs dos HTMLs...[/cyan]"):
         ids = bulk.extract_ids_from_data_dir(data_dir)
@@ -526,7 +497,7 @@ def pipeline_cmd(
     ] = False,
 ) -> None:
     """Sincronizar o catálogo completo de metadados do SGS/BCB (4 passos)."""
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
     data_dir = storage.get_data_dir(output, dt.date.today())
 
     results: dict[str, str] = {}
@@ -566,7 +537,7 @@ def pipeline_cmd(
     console.print(
         Rule("[bold]Passo 2/4: Séries desativadas[/bold]")
     )
-    with _make_progress() as progress:
+    with make_batch_progress(console) as progress:
         task = progress.add_task(
             "[cyan]Séries desativadas[/cyan]", total=None
         )
@@ -606,7 +577,7 @@ def pipeline_cmd(
 
     # --- Passo 4 ---
     console.print(Rule("[bold]Passo 4/4: Metadados[/bold]"))
-    with _make_progress() as progress:
+    with make_batch_progress(console) as progress:
         task = progress.add_task(
             "[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids)
         )
@@ -669,7 +640,7 @@ def search(
     """Buscar séries no SGS/BCB por texto."""
     from bs4 import BeautifulSoup
 
-    _setup_logging(verbose)
+    setup_rich_logging(verbose, console=console)
     with console.status(f'[cyan]Buscando "{text}"...[/cyan]'):
         with ScraperClient() as scraper:
             html = scraper.search_series_by_text(text)
