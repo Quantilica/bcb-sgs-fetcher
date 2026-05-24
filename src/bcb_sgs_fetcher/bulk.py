@@ -9,14 +9,18 @@ wrapper is needed here.
 """
 
 import dataclasses
+import datetime as dt
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from bs4 import BeautifulSoup
 
 from . import logger, storage
 from .constants import BASIC, FULL
+from .data import Period, SgsDataClient
 from .reader import arvore_grupos as ag_reader
 from .reader import table_utils
 from .reader.metadata import parse_metadata_basic, parse_metadata_full
@@ -301,18 +305,35 @@ def fetch_metadata_bulk(
     return successful, failed
 
 
-def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
-    """Extract all series IDs from downloaded HTML files in *data_dir*.
+def _collect_freqs(
+    html_file: Path, freqs: dict[int, str | None]
+) -> None:
+    """Parse one listing page, recording ``series_id -> acronym``."""
+    try:
+        soup = BeautifulSoup(
+            html_file.read_bytes().decode("latin-1"), "lxml"
+        )
+        table = soup.select_one("table#tabelaSeries")
+        if table is None:
+            return
+        for row in table_utils.extract_table_data(table):
+            freqs[row.series_id] = row.frequency_acronym
+    except Exception as exc:
+        logger.warning("Failed to parse %s: %s", html_file, exc)
+
+
+def extract_series_freq_map_from_data_dir(
+    data_dir: Path,
+) -> dict[int, str | None]:
+    """Map ``series_id -> frequency_acronym`` from listing HTML.
 
     Reads series listing pages inside ``arvore-grupos`` subdirectories
-    and all ``series-desativadas`` pages. Returns a sorted list of
-    unique IDs.
-
-    This is the equivalent of ``sgs-process index`` in bcb-sgs-metadata-db:
-    it bridges the gap between ``arvore-grupos`` / ``series-desativadas``
-    downloads and ``metadata-bulk``.
+    and all ``series-desativadas`` pages. The frequency acronym
+    (``"D"``/``"S"``/``"M"``/``"T"``/``"Qd"``/``"A"``) comes straight from
+    each row, so daily series can later be fetched with the retroactive
+    year-by-year strategy without any extra HTTP calls.
     """
-    ids: set[int] = set()
+    freqs: dict[int, str | None] = {}
 
     arvore_dir = data_dir / "arvore-grupos"
     if not arvore_dir.exists():
@@ -329,19 +350,7 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
             arvore_dir,
         )
         for html_file in series_files:
-            try:
-                soup = BeautifulSoup(
-                    html_file.read_bytes().decode("latin-1"), "lxml"
-                )
-                table = soup.select_one("table#tabelaSeries")
-                if table is None:
-                    continue
-                for row in table_utils.extract_table_data(table):
-                    ids.add(row.series_id)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to parse %s: %s", html_file, exc
-                )
+            _collect_freqs(html_file, freqs)
 
     desativ_dir = data_dir / "series-desativadas"
     if not desativ_dir.exists():
@@ -356,21 +365,162 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
             desativ_dir,
         )
         for html_file in desativ_files:
+            _collect_freqs(html_file, freqs)
+
+    return freqs
+
+
+def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
+    """Extract all series IDs from downloaded HTML files in *data_dir*.
+
+    Reads series listing pages inside ``arvore-grupos`` subdirectories
+    and all ``series-desativadas`` pages. Returns a sorted list of
+    unique IDs.
+
+    This is the equivalent of ``sgs-process index`` in bcb-sgs-metadata-db:
+    it bridges the gap between ``arvore-grupos`` / ``series-desativadas``
+    downloads and ``metadata-bulk``.
+    """
+    return sorted(extract_series_freq_map_from_data_dir(data_dir))
+
+
+def build_series_freqs(
+    *,
+    series_id: int | None,
+    ids_file: Path | None,
+    catalog_dir: Path,
+    frequency: str | None,
+) -> dict[int, str | None]:
+    """Resolve the ``series_id -> frequency_acronym`` map for a sync run.
+
+    Precedence: a single *series_id*, then an *ids_file* (one id per line),
+    otherwise **all** series read from the listing HTML under *catalog_dir*
+    (the default scope). *frequency*, when given, overrides the acronym for
+    every series; otherwise daily series are detected per row.
+    """
+    if series_id is not None:
+        return {series_id: frequency}
+    if ids_file is not None:
+        ids = [
+            int(line.strip())
+            for line in ids_file.read_text().splitlines()
+            if line.strip()
+        ]
+        return {sid: frequency for sid in ids}
+    freqs = extract_series_freq_map_from_data_dir(catalog_dir)
+    if frequency is not None:
+        return {sid: frequency for sid in freqs}
+    return freqs
+
+
+def fetch_data_bulk(
+    series_freqs: dict[int, str | None],
+    client: SgsDataClient,
+    output: Path,
+    *,
+    period: Period = "all",
+    skip_existing: bool = False,
+    workers: int = 5,
+    sleeptime: float = 0.5,
+    date: dt.date | None = None,
+    on_progress: (
+        Callable[[int, int, int, int, int], None] | None
+    ) = None,
+) -> tuple[int, int]:
+    """Fetch time-series data for many series concurrently.
+
+    Per series writes ``output/data/series_{id}@YYYYMMDD.json`` (skipped
+    when *skip_existing* and the snapshot for *date* already exists).
+    Daily series (acronym ``"D"``) use the retroactive year-by-year
+    strategy via :meth:`SgsDataClient.fetch_series_data`. The shared
+    ``client`` is safe across threads because ``HttpClient`` opens a fresh
+    connection per request and already retries 408/429/5xx.
+
+    Empty results are counted as *skipped* (many series are legitimately
+    empty) and no file is written.
+
+    ``KeyboardInterrupt`` (Ctrl+C) cancels gracefully: pending series are
+    dropped, in-flight ones (including daily backfills) stop at the next
+    checkpoint, partial data is not persisted, and the exception is
+    re-raised so the caller can report cancellation.
+
+    Returns:
+        ``(successful, failed)`` counts.
+    """
+    snapshot_date = date or dt.date.today()
+    total = len(series_freqs)
+    lock = threading.Lock()
+    stop = threading.Event()
+    counters = {"processed": 0, "ok": 0, "failed": 0, "skipped": 0}
+
+    def _worker(series_id: int, freq: str | None) -> None:
+        if stop.is_set():
+            return
+        dest = storage.data_file_path(output, series_id, snapshot_date)
+        if skip_existing and dest.exists():
+            outcome = "skipped"
+        else:
             try:
-                soup = BeautifulSoup(
-                    html_file.read_bytes().decode("latin-1"), "lxml"
+                points = client.fetch_series_data(
+                    series_id=series_id,
+                    period=period,
+                    frequency_acronym=freq,
+                    should_stop=stop.is_set,
                 )
-                table = soup.select_one("table#tabelaSeries")
-                if table is None:
-                    continue
-                for row in table_utils.extract_table_data(table):
-                    ids.add(row.series_id)
+                if stop.is_set():
+                    return  # cancelled mid-fetch — don't persist partial
+                if points:
+                    storage.save_json(
+                        [dataclasses.asdict(p) for p in points], dest
+                    )
+                    outcome = "ok"
+                else:
+                    logger.warning("Nenhum dado para série %d", series_id)
+                    outcome = "skipped"
             except Exception as exc:
-                logger.warning(
-                    "Failed to parse %s: %s", html_file, exc
+                logger.error(
+                    "Falha ao baixar série %d: %s", series_id, exc
+                )
+                outcome = "failed"
+            finally:
+                if not stop.is_set():
+                    time.sleep(sleeptime)
+        with lock:
+            counters[outcome] += 1
+            counters["processed"] += 1
+            if on_progress is not None:
+                on_progress(
+                    counters["processed"],
+                    total,
+                    counters["ok"],
+                    counters["failed"],
+                    counters["skipped"],
                 )
 
-    return sorted(ids)
+    executor = ThreadPoolExecutor(max_workers=workers)
+    futures = [
+        executor.submit(_worker, series_id, freq)
+        for series_id, freq in sorted(series_freqs.items())
+    ]
+    try:
+        for future in as_completed(futures):
+            future.result()
+    except KeyboardInterrupt:
+        logger.warning("Interrompido — cancelando downloads pendentes...")
+        stop.set()
+        for future in futures:
+            future.cancel()
+        raise
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+
+    logger.info(
+        "Completed: %d successful, %d failed, %d skipped",
+        counters["ok"],
+        counters["failed"],
+        counters["skipped"],
+    )
+    return counters["ok"], counters["failed"]
 
 
 def _fetch_one_metadata(

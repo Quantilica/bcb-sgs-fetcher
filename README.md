@@ -132,6 +132,33 @@ bcb-sgs-fetcher catalogo metadata-bulk \
     -o /data/bcb-sgs
 ```
 
+### Baixar dados das séries
+
+Por padrão, `series sync` baixa os **dados** (a série temporal) de **todas** as
+séries — enumeradas a partir das listagens já baixadas pelo `catalogo sync`. A
+periodicidade de cada série é lida das listagens, então séries diárias já usam a
+estratégia retroativa automaticamente. O download é **concorrente**
+(`--workers`) e **retomável** (`--skip-existing`).
+
+```bash
+# Todas as séries (padrão) — requer um catálogo já sincronizado
+bcb-sgs-fetcher series sync --skip-existing --workers 5 -o /data/bcb-sgs
+
+# Estreitando: apenas uma série
+bcb-sgs-fetcher series sync 1 --frequency D -o /data/bcb-sgs
+
+# Estreitando: apenas os IDs de um arquivo
+bcb-sgs-fetcher series sync \
+    --ids-file /data/bcb-sgs/bcb-sgs_YYYY-MM/ids.txt \
+    --skip-existing --workers 5 -o /data/bcb-sgs
+```
+
+Por padrão as listagens são procuradas em `<output>/bcb-sgs_YYYY-MM`; use
+`--catalog-dir` para apontar outro mês. Os dados são gravados em
+`<output>/data/series_{id}@YYYYMMDD.json` (nome **versionado** por data —
+coletas de dias diferentes coexistem). Use `--period latest` para baixar só as
+últimas 20 observações.
+
 ## API Python
 
 ### Navegar a árvore de grupos

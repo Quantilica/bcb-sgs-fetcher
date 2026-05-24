@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from quantilica_core.files import write_bytes_atomic, write_text_atomic
+from quantilica_core.storage import stamp_filename
 
 
 def get_data_dir(data_dir: Path, date: dt.date) -> Path:
@@ -18,6 +19,16 @@ def get_data_dir(data_dir: Path, date: dt.date) -> Path:
     Uses the ``bcb-sgs_YYYY-MM`` month-partitioned convention.
     """
     return data_dir / f"bcb-sgs_{date:%Y-%m}"
+
+
+def data_file_path(output: Path, series_id: int, date: dt.date) -> Path:
+    """Return the stamped path for a series' data snapshot.
+
+    ``<output>/data/series_{id}@YYYYMMDD.json`` — stamped so multiple
+    snapshots coexist and the latest one can be queried.
+    """
+    name = stamp_filename(f"series_{series_id}", "json", date)
+    return output / "data" / name
 
 
 def save_json(data: Any, filepath: Path) -> None:

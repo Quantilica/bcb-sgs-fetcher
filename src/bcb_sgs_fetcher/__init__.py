@@ -14,7 +14,9 @@ except PackageNotFoundError:
 from . import bulk, storage  # noqa: E402  re-exported for convenience
 from .bulk import (  # noqa: E402
     extract_ids_from_data_dir,
+    extract_series_freq_map_from_data_dir,
     fetch_arvore_grupos,
+    fetch_data_bulk,
     fetch_metadata_bulk,
     fetch_series_desativadas,
 )
@@ -66,7 +68,9 @@ __all__ = [
     "ArvoreGrupoLink",
     "bulk",
     "extract_ids_from_data_dir",
+    "extract_series_freq_map_from_data_dir",
     "fetch_arvore_grupos",
+    "fetch_data_bulk",
     "fetch_metadata_bulk",
     "fetch_series_desativadas",
     "BASE_URL",

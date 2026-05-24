@@ -78,9 +78,9 @@ def _make_progress(*extra_cols: object) -> Progress:
 @series_sub.command("sync")
 def fetch(
     series_id: Annotated[
-        int,
-        typer.Argument(help="ID da série no SGS/BCB"),
-    ],
+        int | None,
+        typer.Argument(help="ID de uma série (omita para baixar todas)"),
+    ] = None,
     output: Annotated[
         Path,
         typer.Option("-o", "--output", help="Diretório de saída"),
@@ -90,45 +90,120 @@ def fetch(
         typer.Option(
             "-f",
             "--frequency",
-            help="Periodicidade (D, S, M, T, Qd, A). D=retroativo.",
+            help="Periodicidade (D, S, M, T, Qd, A); aplica a todas.",
         ),
     ] = None,
+    period: Annotated[
+        str,
+        typer.Option(
+            "--period", help="all (histórico) ou latest (últimas 20)"
+        ),
+    ] = "all",
+    ids_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--ids-file", help="Baixar apenas os IDs deste arquivo"
+        ),
+    ] = None,
+    catalog_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--catalog-dir",
+            help="Dir. com arvore-grupos/series-desativadas (todas)",
+        ),
+    ] = None,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(
+            "--skip-existing",
+            help="Pular séries cujo snapshot do dia já existe",
+        ),
+    ] = False,
+    workers: Annotated[
+        int,
+        typer.Option("--workers", help="Downloads concorrentes (padrão: 5)"),
+    ] = 5,
+    sleeptime: Annotated[
+        float,
+        typer.Option(
+            "--sleeptime", help="Pausa (s) por worker após cada série"
+        ),
+    ] = 0.5,
     verbose: Annotated[
         bool, typer.Option("--verbose", help="Logs detalhados")
     ] = False,
 ) -> None:
-    """Baixar dados de uma série temporal do SGS/BCB."""
+    """Baixar dados de todas as séries (padrão), de uma ou de uma lista."""
     _setup_logging(verbose)
-    with console.status(
-        f"[cyan]Baixando série {series_id}...[/cyan]"
-    ):
-        with SgsDataClient() as client:
-            points = client.fetch_series_data(
-                series_id=series_id,
-                frequency_acronym=frequency,
-            )
-    if not points:
+
+    if series_id is not None and ids_file is not None:
         console.print(
-            f"[yellow]Nenhum dado encontrado para série {series_id}.[/yellow]"
+            "[red]Erro:[/red] use series_id OU --ids-file, não ambos."
+        )
+        raise typer.Exit(code=1)
+
+    cat_dir = catalog_dir or storage.get_data_dir(output, dt.date.today())
+    series_freqs = bulk.build_series_freqs(
+        series_id=series_id,
+        ids_file=ids_file,
+        catalog_dir=cat_dir,
+        frequency=frequency,
+    )
+    if not series_freqs:
+        console.print(
+            f"[yellow]Nenhuma série em {cat_dir}.[/yellow] Rode"
+            " 'catalogo sync' primeiro ou informe series_id/--ids-file."
         )
         return
-    data = [dataclasses.asdict(p) for p in points]
-    outfile = output / f"series_{series_id}.json"
-    storage.save_json(data, outfile)
 
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("Início", style="cyan")
-    table.add_column("Fim", style="cyan")
-    table.add_column("Pontos", style="bold green", justify="right")
-    table.add_row(
-        str(points[0].date),
-        str(points[-1].date),
-        str(len(points)),
-    )
-    console.print(table)
-    console.print(
-        f"[green]✓[/green] Salvo em [dim]{outfile}[/dim]"
-    )
+    try:
+        with _make_progress() as progress:
+            task = progress.add_task(
+                "[cyan]0✓  0✗  0 skip[/cyan]", total=len(series_freqs)
+            )
+
+            def on_progress(
+                processed: int,
+                total: int,
+                ok: int,
+                failed: int,
+                skipped: int,
+            ) -> None:
+                progress.update(
+                    task,
+                    completed=processed,
+                    description=(
+                        f"[green]{ok}✓[/green]"
+                        f"  [red]{failed}✗[/red]"
+                        f"  [dim]{skipped} skip[/dim]"
+                    ),
+                )
+
+            with SgsDataClient() as client:
+                successful, failed_count = bulk.fetch_data_bulk(
+                    series_freqs,
+                    client,
+                    output,
+                    period=period,
+                    skip_existing=skip_existing,
+                    workers=workers,
+                    sleeptime=sleeptime,
+                    on_progress=on_progress,
+                )
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Cancelado pelo usuário.[/yellow]")
+        raise typer.Exit(code=130) from None
+
+    if failed_count:
+        console.print(
+            f"[yellow]⚠[/yellow]  {successful} OK"
+            f" · [red]{failed_count} falha(s)[/red]"
+        )
+    else:
+        console.print(
+            f"[green]✓[/green]  [bold]{successful}[/bold]"
+            " série(s) baixada(s) com sucesso."
+        )
 
 
 @series_sub.command("metadata")

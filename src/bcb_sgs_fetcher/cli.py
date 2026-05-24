@@ -30,18 +30,43 @@ _DEFAULT_OUTPUT = Path("/data/bcb-sgs")
 
 
 def handle_fetch(args: argparse.Namespace) -> None:
-    with SgsDataClient() as client:
-        points = client.fetch_series_data(
-            series_id=args.series_id,
-            frequency_acronym=args.frequency,
+    if args.series_id is not None and args.ids_file is not None:
+        logger.error("Use series_id OU --ids-file, não ambos.")
+        sys.exit(1)
+
+    catalog_dir = args.catalog_dir or storage.get_data_dir(
+        args.output, dt.date.today()
+    )
+    series_freqs = bulk.build_series_freqs(
+        series_id=args.series_id,
+        ids_file=args.ids_file,
+        catalog_dir=catalog_dir,
+        frequency=args.frequency,
+    )
+    if not series_freqs:
+        logger.warning(
+            "Nenhuma série em %s. Rode 'catalogo sync' primeiro ou"
+            " informe series_id/--ids-file.",
+            catalog_dir,
         )
-    if not points:
-        logger.warning("Nenhum dado encontrado para série %s", args.series_id)
         return
-    data = [dataclasses.asdict(p) for p in points]
-    outfile = args.output / f"series_{args.series_id}.json"
-    storage.save_json(data, outfile)
-    logger.info("Salvo %d pontos em %s", len(points), outfile)
+
+    with SgsDataClient() as client:
+        successful, failed = bulk.fetch_data_bulk(
+            series_freqs,
+            client,
+            args.output,
+            period=args.period,
+            skip_existing=args.skip_existing,
+            workers=args.workers,
+            sleeptime=args.sleeptime,
+        )
+    if failed:
+        logger.warning(
+            "Completo: %d OK, %d falha(s)", successful, failed
+        )
+    else:
+        logger.info("Completo: %d séries baixadas", successful)
 
 
 def handle_metadata(args: argparse.Namespace) -> None:
@@ -240,16 +265,65 @@ def set_parser() -> argparse.ArgumentParser:
 
     # series sync
     sync_parser = series_sub.add_parser(
-        "sync", help="Baixar dados de uma série temporal"
+        "sync",
+        help="Baixar dados de todas as séries (padrão), de uma ou de"
+        " uma lista",
     )
     sync_parser.add_argument(
-        "series_id", type=int, help="ID da série no SGS/BCB"
+        "series_id",
+        type=int,
+        nargs="?",
+        default=None,
+        help="ID de uma série (omita para baixar todas)",
     )
     sync_parser.add_argument(
         "-f",
         "--frequency",
         default=None,
-        help="Periodicidade (D, S, M, T, Qd, A)",
+        help=(
+            "Periodicidade (D, S, M, T, Qd, A); aplicada a todas as"
+            " séries quando informada"
+        ),
+    )
+    sync_parser.add_argument(
+        "--period",
+        choices=["all", "latest"],
+        default="all",
+        help="Histórico completo (all) ou últimas 20 obs. (latest)",
+    )
+    sync_parser.add_argument(
+        "--ids-file",
+        type=Path,
+        default=None,
+        help="Baixar apenas os IDs deste arquivo (um por linha)",
+    )
+    sync_parser.add_argument(
+        "--catalog-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Diretório com arvore-grupos/series-desativadas usado para"
+            " enumerar todas as séries"
+            " (padrão: <output>/bcb-sgs_YYYY-MM)"
+        ),
+    )
+    sync_parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=False,
+        help="Pular séries cujo snapshot do dia já existe",
+    )
+    sync_parser.add_argument(
+        "--workers",
+        type=int,
+        default=5,
+        help="Downloads concorrentes (padrão: 5)",
+    )
+    sync_parser.add_argument(
+        "--sleeptime",
+        type=float,
+        default=0.5,
+        help="Pausa (s) por worker após cada série (padrão: 0.5)",
     )
     sync_parser.add_argument(
         "-o",
