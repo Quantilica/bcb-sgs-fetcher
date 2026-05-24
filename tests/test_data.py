@@ -164,6 +164,81 @@ def test_daily_series_walks_years_backwards():
     assert any("dataInicial=01/01/2023" in c for c in calls)
 
 
+def test_daily_series_stops_on_404():
+    """A 404 (before series start) ends the walk; data so far is kept."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "/ultimos/20" in url:
+            payload = [
+                {"data": "05/03/2024", "valor": "5.5"},
+                {"data": "04/03/2024", "valor": "5.4"},
+            ]
+        elif "dataInicial=01/01/2023" in url:
+            payload = [{"data": "15/06/2023", "valor": "5.0"}]
+        else:
+            # The real BCB API returns 404 for years before the start.
+            return httpx.Response(404, content=b"not found")
+        return httpx.Response(
+            200,
+            content=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    with SgsDataClient(transport=transport) as client:
+        points = client.fetch_series_data(
+            series_id=1, period="all", frequency_acronym="D"
+        )
+
+    dates = {p.date for p in points}
+    assert {
+        dt.date(2024, 3, 5),
+        dt.date(2024, 3, 4),
+        dt.date(2023, 6, 15),
+    } <= dates
+
+
+def test_non_daily_404_returns_empty():
+    """A 404 on the plain ``/dados`` endpoint yields no points (not error)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, content=b"not found")
+
+    transport = httpx.MockTransport(handler)
+    with SgsDataClient(transport=transport) as client:
+        assert client.fetch_series_data(series_id=42, period="all") == []
+
+
+def test_daily_series_stops_when_should_stop():
+    """``should_stop`` halts the year-by-year walk after the anchor call."""
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        payload = [
+            {"data": "05/03/2024", "valor": "5.5"},
+            {"data": "04/03/2024", "valor": "5.4"},
+        ]
+        return httpx.Response(
+            200,
+            content=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    with SgsDataClient(transport=transport) as client:
+        points = client.fetch_series_data(
+            series_id=1,
+            period="all",
+            frequency_acronym="D",
+            should_stop=lambda: True,
+        )
+
+    assert len(points) == 2
+    assert len(calls) == 1  # only /ultimos/20, no year windows
+
+
 def test_invalid_date_in_record_is_skipped():
     payload = [
         {"data": "not-a-date", "valor": "1"},

@@ -12,17 +12,23 @@ Public surface:
 """
 
 import datetime as dt
+from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from types import TracebackType
 from typing import Literal
 
 import httpx
+from quantilica_core.exceptions import FetchError
 from quantilica_core.http import HttpClient
 
 from . import logger
 from .models import SeriesPoint
 
 API_BASE_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs."
+
+# Earliest year the retroactive daily walk will probe — a crash guard;
+# the API normally signals the series start with a 404 long before this.
+_MIN_DAILY_YEAR = 1900
 
 Period = Literal["all", "latest"]
 
@@ -84,7 +90,9 @@ def _parse_point(
 
 
 def get_daily_series(
-    series_id: int, client: HttpClient
+    series_id: int,
+    client: HttpClient,
+    should_stop: Callable[[], bool] | None = None,
 ) -> list[SeriesPoint]:
     """Fetch a daily series using the year-by-year retroactive strategy.
 
@@ -94,8 +102,15 @@ def get_daily_series(
     1. Pull the last 20 observations from ``/ultimos/20`` to anchor the
        most recent date.
     2. Walk backwards year by year requesting the full Jan 1 — Dec 31
-       window, accumulating points until the API returns no data for a
-       given year (raising :class:`ValueError`).
+       window, accumulating points until the series start is reached.
+
+    The API signals "before the series start" with an HTTP 404 (raising
+    :class:`~quantilica_core.exceptions.FetchError`); an unexpected
+    payload raises :class:`ValueError`; both end the walk and the points
+    collected so far are returned. ``_MIN_DAILY_YEAR`` is a crash guard.
+
+    When *should_stop* returns ``True`` the backward walk halts, so a
+    long backfill can be cancelled responsively (checked once per year).
     """
     raw_points: list[dict[str, str | None]] = []
 
@@ -113,7 +128,9 @@ def get_daily_series(
     year = last_date.year - 1
     start_date = dt.date(year, 1, 1)
 
-    while True:
+    while year >= _MIN_DAILY_YEAR:
+        if should_stop is not None and should_stop():
+            break
         url = (
             f"{API_BASE_URL}{series_id}/dados?formato=json"
             f"&dataInicial={start_date:%d/%m/%Y}"
@@ -121,7 +138,9 @@ def get_daily_series(
         )
         try:
             data_in_interval = _get_json(url=url, client=client)
-        except ValueError:
+        except (ValueError, FetchError):
+            break
+        if not data_in_interval:
             break
         raw_points.extend(data_in_interval)
         year -= 1
@@ -137,6 +156,7 @@ def fetch_series_data(
     client: HttpClient,
     period: Period = "all",
     frequency_acronym: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> list[SeriesPoint]:
     """Fetch the time series for ``series_id``.
 
@@ -148,15 +168,19 @@ def fetch_series_data(
         frequency_acronym: One of ``"D"``, ``"S"``, ``"M"``, ``"T"``,
             ``"Qd"``, ``"A"``. Only ``"D"`` (daily) triggers the special
             retroactive strategy in :func:`get_daily_series`.
+        should_stop: Optional predicate; when it returns ``True`` a daily
+            backfill stops early (see :func:`get_daily_series`).
     """
     logger.info("Fetching data series %s", series_id)
     if frequency_acronym == "D" and period == "all":
-        return get_daily_series(series_id=series_id, client=client)
+        return get_daily_series(
+            series_id=series_id, client=client, should_stop=should_stop
+        )
 
     url = get_url(series_id=series_id, period=period)
     try:
         raw = _get_json(url=url, client=client)
-    except ValueError as e:
+    except (ValueError, FetchError) as e:
         logger.warning(
             "Error fetching data for series %s: %s", series_id, e
         )
@@ -186,6 +210,7 @@ class SgsDataClient:
         series_id: int,
         period: Period = "all",
         frequency_acronym: str | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ) -> list[SeriesPoint]:
         """Same as :func:`fetch_series_data` using the bound client."""
         return fetch_series_data(
@@ -193,11 +218,20 @@ class SgsDataClient:
             client=self.client,
             period=period,
             frequency_acronym=frequency_acronym,
+            should_stop=should_stop,
         )
 
-    def get_daily_series(self, series_id: int) -> list[SeriesPoint]:
+    def get_daily_series(
+        self,
+        series_id: int,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> list[SeriesPoint]:
         """Same as :func:`get_daily_series` using the bound client."""
-        return get_daily_series(series_id=series_id, client=self.client)
+        return get_daily_series(
+            series_id=series_id,
+            client=self.client,
+            should_stop=should_stop,
+        )
 
     def close(self) -> None:
         pass  # HttpClient is stateless; connections close after each request
