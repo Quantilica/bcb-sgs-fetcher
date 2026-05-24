@@ -155,9 +155,11 @@ bcb-sgs-fetcher series sync \
 
 Por padrão as listagens são procuradas em `<output>/bcb-sgs_YYYY-MM`; use
 `--catalog-dir` para apontar outro mês. Os dados são gravados em
-`<output>/data/series_{id}@YYYYMMDD.json` (nome **versionado** por data —
-coletas de dias diferentes coexistem). Use `--period latest` para baixar só as
-últimas 20 observações.
+`<output>/data/series_{id}@YYYYMMDDTHHMMSS.json` (nome **versionado** por
+data-hora — cada coleta gera um snapshot novo, então re-baixar a mesma série no
+mesmo dia **não sobrescreve** a anterior). `--skip-existing` pula séries que já
+têm um snapshot do dia. Use `--period latest` para baixar só as últimas 20
+observações.
 
 ## API Python
 
@@ -175,16 +177,24 @@ with ScraperClient() as scraper:
 
 ### Cache em disco
 
-`bcb_sgs_fetcher.storage` oferece layout de cache particionado por mês:
+`bcb_sgs_fetcher.storage` é a fonte única do layout em disco do ecossistema
+bcb-sgs (o `bcb-sgs-sql` consome este mesmo módulo). É construído sobre
+`quantilica-core` (escrita atômica, `stamp_filename`, `StampedDataRepository`).
 
 ```python
 from pathlib import Path
-import datetime as dt
 from bcb_sgs_fetcher import storage
 
-month_dir = storage.get_data_dir(Path("/data/bcb-sgs"), dt.date.today())
-storage.save_bytes(html_bytes, month_dir / "metadata" / "000001_basic.html")
-storage.save_json(parsed_dict, month_dir / "metadata" / "000001.json")
+root = Path("/data/bcb-sgs")
+
+# Observações: snapshot versionado por data-hora (não sobrescreve)
+storage.write_series_data(root, 1, rows)          # data/series_1@...T....json
+latest = storage.latest_series_file(root, 1)      # snapshot mais recente
+rows = storage.read_series_data(latest)
+
+# Metadados particionados por mês (combinado + HTML bruto)
+storage.write_metadata(root, 1, basic=b, full=f, html_basic=hb, html_full=hf)
+combined = storage.read_combined_metadata(root, 1)  # {"basic": ..., "full": ...}
 ```
 
 ## Fontes de Dados

@@ -456,8 +456,9 @@ def fetch_data_bulk(
     def _worker(series_id: int, freq: str | None) -> None:
         if stop.is_set():
             return
-        dest = storage.data_file_path(output, series_id, snapshot_date)
-        if skip_existing and dest.exists():
+        if skip_existing and storage.snapshot_exists_for_date(
+            output, series_id, snapshot_date
+        ):
             outcome = "skipped"
         else:
             try:
@@ -470,8 +471,10 @@ def fetch_data_bulk(
                 if stop.is_set():
                     return  # cancelled mid-fetch — don't persist partial
                 if points:
-                    storage.save_json(
-                        [dataclasses.asdict(p) for p in points], dest
+                    storage.write_series_data(
+                        output,
+                        series_id,
+                        [dataclasses.asdict(p) for p in points],
                     )
                     outcome = "ok"
                 else:

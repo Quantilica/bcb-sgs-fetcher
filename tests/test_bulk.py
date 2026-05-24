@@ -151,7 +151,6 @@ def test_fetch_data_bulk_writes_stamped_files(tmp_path):
 
     handler, _calls = _handler_by_id(payload_for)
     transport = httpx.MockTransport(handler)
-    today = dt.date.today()
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -164,8 +163,8 @@ def test_fetch_data_bulk_writes_stamped_files(tmp_path):
 
     assert (ok, failed) == (2, 0)
     for sid in (1, 4189):
-        dest = storage.data_file_path(tmp_path, sid, today)
-        assert dest.exists()
+        dest = storage.latest_series_file(tmp_path, sid)
+        assert dest is not None
         records = json.loads(dest.read_text(encoding="utf-8"))
         assert records[0]["series_id"] == sid
         assert records[0]["date"] == "2024-01-01"
@@ -212,7 +211,6 @@ def test_fetch_data_bulk_empty_counts_as_skipped(tmp_path):
 
     handler, _calls = _handler_by_id(lambda sid, url: [])
     transport = httpx.MockTransport(handler)
-    today = dt.date.today()
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -226,7 +224,7 @@ def test_fetch_data_bulk_empty_counts_as_skipped(tmp_path):
 
     assert (ok, failed) == (0, 0)
     assert seen["skipped"] == 1
-    assert not storage.data_file_path(tmp_path, 1, today).exists()
+    assert storage.latest_series_file(tmp_path, 1) is None
 
 
 def test_fetch_data_bulk_daily_uses_backfill(tmp_path):
@@ -242,7 +240,6 @@ def test_fetch_data_bulk_daily_uses_backfill(tmp_path):
 
     handler, calls = _handler_by_id(payload_for)
     transport = httpx.MockTransport(handler)
-    today = dt.date.today()
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -254,7 +251,7 @@ def test_fetch_data_bulk_daily_uses_backfill(tmp_path):
         )
 
     assert (ok, failed) == (1, 0)
-    dest = storage.data_file_path(tmp_path, 1, today)
+    dest = storage.latest_series_file(tmp_path, 1)
     records = json.loads(dest.read_text(encoding="utf-8"))
     dates = {r["date"] for r in records}
     assert {"2024-03-05", "2024-03-04", "2023-06-15"} <= dates
@@ -268,7 +265,6 @@ def test_fetch_data_bulk_concurrent(tmp_path):
 
     handler, _calls = _handler_by_id(payload_for)
     transport = httpx.MockTransport(handler)
-    today = dt.date.today()
     ids = {sid: "M" for sid in (1, 2, 3, 4, 5)}
 
     with SgsDataClient(transport=transport) as client:
@@ -278,7 +274,7 @@ def test_fetch_data_bulk_concurrent(tmp_path):
 
     assert (ok, failed) == (5, 0)
     for sid in ids:
-        assert storage.data_file_path(tmp_path, sid, today).exists()
+        assert storage.latest_series_file(tmp_path, sid) is not None
 
 
 class _BoomClient:
