@@ -77,6 +77,30 @@ def latest_series_file(output: Path, series_id: int) -> Path | None:
     )
 
 
+def latest_series_datetime(
+    output: Path, series_id: int
+) -> dt.datetime | None:
+    """Download timestamp of the newest snapshot for a series, or ``None``.
+
+    Parses the stamp embedded in the filename. Recognizes both the datetime
+    stamp (``@YYYYMMDDTHHMMSS``) and the legacy date-only stamp
+    (``@YYYYMMDD``).
+    """
+    path = latest_series_file(output, series_id)
+    if path is None:
+        return None
+    slug = _series_slug(series_id)
+    if not path.name.startswith(f"{slug}@"):
+        return None
+    stem = path.name[len(slug) + 1 :].removesuffix(".json")
+    for fmt in ("%Y%m%dT%H%M%S", "%Y%m%d"):
+        try:
+            return dt.datetime.strptime(stem, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def snapshot_exists_for_date(
     output: Path, series_id: int, date: dt.date
 ) -> bool:

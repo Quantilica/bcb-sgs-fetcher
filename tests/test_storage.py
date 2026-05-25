@@ -45,6 +45,28 @@ def test_latest_series_file_recognizes_legacy_date_stamp(tmp_path):
     assert storage.latest_series_file(tmp_path, 404) is None
 
 
+def test_latest_series_datetime_parses_datetime_stamp(tmp_path):
+    storage.write_series_data(
+        tmp_path, 7, [{"a": 1}], dt.datetime(2026, 1, 1, 10, 0, 0)
+    )
+    assert storage.latest_series_datetime(tmp_path, 7) == dt.datetime(
+        2026, 1, 1, 10, 0, 0
+    )
+
+
+def test_latest_series_datetime_parses_legacy_date_stamp(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "series_9@20260201.json").write_text("[]")
+    assert storage.latest_series_datetime(tmp_path, 9) == dt.datetime(
+        2026, 2, 1, 0, 0, 0
+    )
+
+
+def test_latest_series_datetime_none_when_absent(tmp_path):
+    assert storage.latest_series_datetime(tmp_path, 404) is None
+
+
 def test_snapshot_exists_for_date(tmp_path):
     storage.write_series_data(
         tmp_path, 7, [{"a": 1}], dt.datetime(2026, 1, 1, 10, 0, 0)
