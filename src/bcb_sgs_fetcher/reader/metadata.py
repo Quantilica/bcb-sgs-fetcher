@@ -71,9 +71,7 @@ def _coerce_basic_dict(data: dict[str, Any]) -> dict[str, Any]:
             data[key] = int(clean_cell_text(value))
         elif key == MIN_VALUE or key == MAX_VALUE:
             try:
-                data[key] = float(
-                    clean_cell_text(value.text).replace(",", ".")
-                )
+                data[key] = float(clean_cell_text(value.text).replace(",", "."))
             except ValueError:
                 data[key] = None
 
@@ -98,10 +96,14 @@ def parse_metadata_basic(html: str | bytes) -> SeriesMetadataBasic:
     soup = BeautifulSoup(html, "lxml")
     table = soup.find("table")
     if table is None:
-        raise ValueError("metadata table not found — server may have returned an error page")
+        raise ValueError(
+            "metadata table not found — server may have returned an error page"
+        )
     rows = table.find_all("tr")
     if not rows:
-        raise ValueError("metadata table has no rows — server may have returned an error page")
+        raise ValueError(
+            "metadata table has no rows — server may have returned an error page"
+        )
     first_row = rows[0]
     series_id = first_row.text.replace("Dados básicos da série ", "").strip()
 
@@ -201,9 +203,7 @@ def _get_description(table: Tag) -> list[DescriptionField]:
             continue
         key, raw_value = cells[0].text.strip(), cells[1].decode_contents()
         value = _markdownify_cell(raw_value)
-        data.append(
-            DescriptionField(section=section, field=key, value=value)
-        )
+        data.append(DescriptionField(section=section, field=key, value=value))
     return data
 
 
@@ -213,9 +213,7 @@ def _get_methodology(table: Tag) -> list[MethodologyField]:
     table_rows = table.find_all("tr", recursive=False)[1:]
     for i in range(0, len(table_rows), 2):
         key = clean_cell_text(table_rows[i].text)
-        raw_value = (
-            table_rows[i + 1].find("td", recursive=False).decode_contents()
-        )
+        raw_value = table_rows[i + 1].find("td", recursive=False).decode_contents()
         value = _markdownify_cell(raw_value)
         data.append(MethodologyField(field=key, value=value))
     return data

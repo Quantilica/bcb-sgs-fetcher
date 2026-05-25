@@ -55,9 +55,7 @@ def extract_theme_nodes(
             )
         sublist = li.select(f"div > ul.lista{level + 1} > li")
         if sublist:
-            yield from extract_theme_nodes(
-                sublist, level + 1, chain + [name]
-            )
+            yield from extract_theme_nodes(sublist, level + 1, chain + [name])
 
 
 def _parse_arvore_link(href: str) -> dict[str, str]:
@@ -92,12 +90,8 @@ def extract_arvore_grupos(table: Tag) -> list[ArvoreGrupoLink]:
         subtext = re.sub(r"\s+", " ", td.text.strip())
         links.append(
             ArvoreGrupoLink(
-                hd_oid_grupo_selecionado=link_metadata[
-                    "hd_oid_grupo_selecionado"
-                ],
-                hd_seq_grupo_selecionado=link_metadata[
-                    "hd_seq_grupo_selecionado"
-                ],
+                hd_oid_grupo_selecionado=link_metadata["hd_oid_grupo_selecionado"],
+                hd_seq_grupo_selecionado=link_metadata["hd_seq_grupo_selecionado"],
                 nome=a_text,
                 subtext=subtext or None,
             )
@@ -108,9 +102,7 @@ def extract_arvore_grupos(table: Tag) -> list[ArvoreGrupoLink]:
 def extract_grupo_links(soup: BeautifulSoup) -> list[GrupoLink]:
     """Extract every ``selecionarGrupoLink`` link from a page."""
     out: list[GrupoLink] = []
-    match_pattern = re.compile(
-        r"javascript:selecionarGrupoLink\((\d+), '(.+)'\);"
-    )
+    match_pattern = re.compile(r"javascript:selecionarGrupoLink\((\d+), '(.+)'\);")
     for a in soup.select("a"):
         href = a.get("href")
         if not href:

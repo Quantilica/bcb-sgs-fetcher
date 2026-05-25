@@ -12,8 +12,7 @@ def test_data_file_path_uses_datetime_precision(tmp_path):
 
 
 def test_write_series_data_roundtrip(tmp_path):
-    rows = [{"series_id": 1, "date": "2020-01-01", "value": "1.5",
-             "date_end": None}]
+    rows = [{"series_id": 1, "date": "2020-01-01", "value": "1.5", "date_end": None}]
     path = storage.write_series_data(tmp_path, 1, rows)
     assert storage.read_series_data(path) == rows
 
@@ -72,9 +71,7 @@ def test_snapshot_exists_for_date(tmp_path):
         tmp_path, 7, [{"a": 1}], dt.datetime(2026, 1, 1, 10, 0, 0)
     )
     assert storage.snapshot_exists_for_date(tmp_path, 7, dt.date(2026, 1, 1))
-    assert not storage.snapshot_exists_for_date(
-        tmp_path, 7, dt.date(2026, 1, 2)
-    )
+    assert not storage.snapshot_exists_for_date(tmp_path, 7, dt.date(2026, 1, 2))
 
 
 def test_write_and_read_combined_metadata(tmp_path):

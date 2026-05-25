@@ -248,7 +248,5 @@ def test_invalid_date_in_record_is_skipped():
     with SgsDataClient(transport=transport) as client:
         points = client.fetch_series_data(series_id=1, period="latest")
     assert points == [
-        SeriesPoint(
-            series_id=1, date=dt.date(2024, 1, 1), value=Decimal("2")
-        )
+        SeriesPoint(series_id=1, date=dt.date(2024, 1, 1), value=Decimal("2"))
     ]

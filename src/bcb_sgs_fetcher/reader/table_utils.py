@@ -96,15 +96,11 @@ def extract_table_data(table: Tag) -> list[GrupoSeriesRow]:
     rows = table.find_all("tr", recursive=False)
     for row in rows:
         if row.has_attr("title"):
-            row_message: str | None = re.sub(
-                r"\s+", " ", row["title"].strip()
-            )
+            row_message: str | None = re.sub(r"\s+", " ", row["title"].strip())
         else:
             row_message = None
         row_cells = row.select("td")
-        row_values = [
-            re.sub(r"\s+", " ", c.text.strip()) for c in row_cells
-        ]
+        row_values = [re.sub(r"\s+", " ", c.text.strip()) for c in row_cells]
         row_data: dict[str, str | dt.date | None] = dict(
             zip(columns_names, row_values, strict=False)
         )
@@ -114,9 +110,7 @@ def extract_table_data(table: Tag) -> list[GrupoSeriesRow]:
             continue
 
         row_data[SERIES_ID] = int(row_data[SERIES_ID])
-        row_data[START] = dt.datetime.strptime(
-            row_data[START], "%d/%m/%Y"
-        ).date()
+        row_data[START] = dt.datetime.strptime(row_data[START], "%d/%m/%Y").date()
         row_data[END] = parse_date_ultimo_valor(row_data)
         row_data[SPECIAL] = row_data.get(SPECIAL) == "S"
 

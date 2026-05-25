@@ -95,9 +95,7 @@ class SeriesMetadataFull:
     provider_data: list[ProviderField] = field(default_factory=list)
     description: list[DescriptionField] = field(default_factory=list)
     methodology: list[MethodologyField] = field(default_factory=list)
-    dissemination_formats: list[DisseminationField] = field(
-        default_factory=list
-    )
+    dissemination_formats: list[DisseminationField] = field(default_factory=list)
 
 
 @dataclass(slots=True)

@@ -34,9 +34,7 @@ def handle_fetch(args: argparse.Namespace) -> None:
         logger.error("Use series_id OU --ids-file, não ambos.")
         sys.exit(1)
 
-    catalog_dir = args.catalog_dir or storage.get_data_dir(
-        args.output, dt.date.today()
-    )
+    catalog_dir = args.catalog_dir or storage.get_data_dir(args.output, dt.date.today())
     series_freqs = bulk.build_series_freqs(
         series_id=args.series_id,
         ids_file=args.ids_file,
@@ -62,9 +60,7 @@ def handle_fetch(args: argparse.Namespace) -> None:
             sleeptime=args.sleeptime,
         )
     if failed:
-        logger.warning(
-            "Completo: %d OK, %d falha(s)", successful, failed
-        )
+        logger.warning("Completo: %d OK, %d falha(s)", successful, failed)
     else:
         logger.info("Completo: %d séries baixadas", successful)
 
@@ -88,26 +84,16 @@ def handle_metadata(args: argparse.Namespace) -> None:
 
 
 def handle_arvore_grupos(args: argparse.Namespace) -> None:
-    dest_dir = (
-        storage.get_data_dir(args.output, dt.date.today())
-        / "arvore-grupos"
-    )
+    dest_dir = storage.get_data_dir(args.output, dt.date.today()) / "arvore-grupos"
     with ScraperClient() as scraper:
-        bulk.fetch_arvore_grupos(
-            scraper, dest_dir, sleeptime=args.sleeptime
-        )
+        bulk.fetch_arvore_grupos(scraper, dest_dir, sleeptime=args.sleeptime)
     logger.info("Árvore de grupos salva em %s", dest_dir)
 
 
 def handle_series_desativadas(args: argparse.Namespace) -> None:
-    dest_dir = (
-        storage.get_data_dir(args.output, dt.date.today())
-        / "series-desativadas"
-    )
+    dest_dir = storage.get_data_dir(args.output, dt.date.today()) / "series-desativadas"
     with ScraperClient() as scraper:
-        bulk.fetch_series_desativadas(
-            scraper, dest_dir, sleeptime=args.sleeptime
-        )
+        bulk.fetch_series_desativadas(scraper, dest_dir, sleeptime=args.sleeptime)
     logger.info("Séries desativadas salvas em %s", dest_dir)
 
 
@@ -120,14 +106,10 @@ def handle_metadata_bulk(args: argparse.Namespace) -> None:
             if line.strip()
         ]
     if not ids:
-        logger.error(
-            "Forneça --ids-file ou pelo menos um --series-id."
-        )
+        logger.error("Forneça --ids-file ou pelo menos um --series-id.")
         sys.exit(1)
 
-    dest_dir = (
-        storage.get_data_dir(args.output, dt.date.today()) / "metadata"
-    )
+    dest_dir = storage.get_data_dir(args.output, dt.date.today()) / "metadata"
     scraper = ScraperClient()
     try:
         successful, failed = bulk.fetch_metadata_bulk(
@@ -182,16 +164,12 @@ def handle_pipeline(args: argparse.Namespace) -> None:
     logger.info("=== Passo 3/4: extração de IDs ===")
     ids = bulk.extract_ids_from_data_dir(data_dir)
     if not ids:
-        logger.error(
-            "Nenhum ID extraído — verifique os erros acima."
-        )
+        logger.error("Nenhum ID extraído — verifique os erros acima.")
         sys.exit(1)
     ids_file = data_dir / "ids.txt"
     ids_file.parent.mkdir(parents=True, exist_ok=True)
     ids_file.write_text("\n".join(str(i) for i in ids) + "\n")
-    logger.info(
-        "%d IDs únicos extraídos, salvos em %s", len(ids), ids_file
-    )
+    logger.info("%d IDs únicos extraídos, salvos em %s", len(ids), ids_file)
 
     logger.info("=== Passo 4/4: metadados ===")
     scraper = ScraperClient()
@@ -207,9 +185,7 @@ def handle_pipeline(args: argparse.Namespace) -> None:
         scraper.close()
 
     if failed:
-        logger.warning(
-            "Pipeline concluído: %d OK, %d falha(s)", successful, failed
-        )
+        logger.warning("Pipeline concluído: %d OK, %d falha(s)", successful, failed)
     else:
         logger.info(
             "Pipeline concluído: %d séries processadas com sucesso",
@@ -266,8 +242,7 @@ def set_parser() -> argparse.ArgumentParser:
     # series sync
     sync_parser = series_sub.add_parser(
         "sync",
-        help="Baixar dados de todas as séries (padrão), de uma ou de"
-        " uma lista",
+        help="Baixar dados de todas as séries (padrão), de uma ou de uma lista",
     )
     sync_parser.add_argument(
         "series_id",
@@ -338,9 +313,7 @@ def set_parser() -> argparse.ArgumentParser:
     meta_parser = series_sub.add_parser(
         "metadata", help="Baixar metadados de uma série"
     )
-    meta_parser.add_argument(
-        "series_id", type=int, help="ID da série no SGS/BCB"
-    )
+    meta_parser.add_argument("series_id", type=int, help="ID da série no SGS/BCB")
     meta_parser.add_argument(
         "-o",
         "--output",
@@ -351,9 +324,7 @@ def set_parser() -> argparse.ArgumentParser:
     meta_parser.set_defaults(func=handle_metadata)
 
     # series search
-    search_parser = series_sub.add_parser(
-        "search", help="Buscar séries por texto"
-    )
+    search_parser = series_sub.add_parser("search", help="Buscar séries por texto")
     search_parser.add_argument("text", help="Texto de busca")
     search_parser.set_defaults(func=handle_search)
 

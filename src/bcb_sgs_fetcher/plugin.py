@@ -66,15 +66,11 @@ def fetch(
     ] = None,
     period: Annotated[
         str,
-        typer.Option(
-            "--period", help="all (histórico) ou latest (últimas 20)"
-        ),
+        typer.Option("--period", help="all (histórico) ou latest (últimas 20)"),
     ] = "all",
     ids_file: Annotated[
         Path | None,
-        typer.Option(
-            "--ids-file", help="Baixar apenas os IDs deste arquivo"
-        ),
+        typer.Option("--ids-file", help="Baixar apenas os IDs deste arquivo"),
     ] = None,
     catalog_dir: Annotated[
         Path | None,
@@ -96,21 +92,15 @@ def fetch(
     ] = 5,
     sleeptime: Annotated[
         float,
-        typer.Option(
-            "--sleeptime", help="Pausa (s) por worker após cada série"
-        ),
+        typer.Option("--sleeptime", help="Pausa (s) por worker após cada série"),
     ] = 0.5,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Baixar dados de todas as séries (padrão), de uma ou de uma lista."""
     setup_rich_logging(verbose, console=console)
 
     if series_id is not None and ids_file is not None:
-        console.print(
-            "[red]Erro:[/red] use series_id OU --ids-file, não ambos."
-        )
+        console.print("[red]Erro:[/red] use series_id OU --ids-file, não ambos.")
         raise typer.Exit(code=1)
 
     cat_dir = catalog_dir or storage.get_data_dir(output, dt.date.today())
@@ -167,8 +157,7 @@ def fetch(
 
     if failed_count:
         console.print(
-            f"[yellow]⚠[/yellow]  {successful} OK"
-            f" · [red]{failed_count} falha(s)[/red]"
+            f"[yellow]⚠[/yellow]  {successful} OK · [red]{failed_count} falha(s)[/red]"
         )
     else:
         console.print(
@@ -187,15 +176,11 @@ def metadata(
         Path,
         typer.Option("-o", "--output", help="Diretório de saída"),
     ] = _DEFAULT_OUTPUT,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Baixar metadados de uma série temporal do SGS/BCB."""
     setup_rich_logging(verbose, console=console)
-    with console.status(
-        f"[cyan]Baixando metadados da série {series_id}...[/cyan]"
-    ):
+    with console.status(f"[cyan]Baixando metadados da série {series_id}...[/cyan]"):
         with ScraperClient() as scraper:
             htmls = scraper.request_metadata_html(series_id=series_id)
         basic = parse_metadata_basic(htmls["basic"])
@@ -219,18 +204,12 @@ def metadata(
     if basic.unit:
         lines.append(f"Unidade: [cyan]{basic.unit}[/cyan]")
     if basic.start_date or basic.end_date:
-        lines.append(
-            f"Período: [dim]{basic.start_date} → {basic.end_date}[/dim]"
-        )
+        lines.append(f"Período: [dim]{basic.start_date} → {basic.end_date}[/dim]")
     if basic.source:
         lines.append(f"Fonte: [dim]{basic.source}[/dim]")
     if lines:
-        console.print(
-            Panel("\n".join(lines), title=f"Série {series_id}")
-        )
-    console.print(
-        f"[green]✓[/green] Metadados salvos em [dim]{meta_dir}[/dim]"
-    )
+        console.print(Panel("\n".join(lines), title=f"Série {series_id}"))
+    console.print(f"[green]✓[/green] Metadados salvos em [dim]{meta_dir}[/dim]")
 
 
 @catalogo_sub.command("arvore-grupos")
@@ -246,16 +225,11 @@ def arvore_grupos_cmd(
             help="Segundos de espera entre requisições",
         ),
     ] = 10.0,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Baixar a árvore de grupos e listas de séries do SGS/BCB."""
     setup_rich_logging(verbose, console=console)
-    dest_dir = (
-        storage.get_data_dir(output, dt.date.today())
-        / "arvore-grupos"
-    )
+    dest_dir = storage.get_data_dir(output, dt.date.today()) / "arvore-grupos"
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -263,9 +237,7 @@ def arvore_grupos_cmd(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        task = progress.add_task(
-            "[cyan]Iniciando...[/cyan]", total=None
-        )
+        task = progress.add_task("[cyan]Iniciando...[/cyan]", total=None)
 
         def on_grupo(nome: str, done: int, total: int) -> None:
             progress.update(
@@ -280,9 +252,7 @@ def arvore_grupos_cmd(
                 scraper, dest_dir, sleeptime=sleeptime, on_grupo=on_grupo
             )
 
-    console.print(
-        f"[green]✓[/green] Árvore de grupos salva em [dim]{dest_dir}[/dim]"
-    )
+    console.print(f"[green]✓[/green] Árvore de grupos salva em [dim]{dest_dir}[/dim]")
 
 
 @catalogo_sub.command("series-desativadas")
@@ -298,20 +268,13 @@ def series_desativadas_cmd(
             help="Segundos de espera entre requisições",
         ),
     ] = 10.0,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Baixar todas as séries desativadas do SGS/BCB."""
     setup_rich_logging(verbose, console=console)
-    dest_dir = (
-        storage.get_data_dir(output, dt.date.today())
-        / "series-desativadas"
-    )
+    dest_dir = storage.get_data_dir(output, dt.date.today()) / "series-desativadas"
     with make_batch_progress(console) as progress:
-        task = progress.add_task(
-            "[cyan]Séries desativadas[/cyan]", total=None
-        )
+        task = progress.add_task("[cyan]Séries desativadas[/cyan]", total=None)
 
         def on_page(page: int, n_pages: int) -> None:
             progress.update(task, completed=page, total=n_pages)
@@ -325,8 +288,7 @@ def series_desativadas_cmd(
             )
 
     console.print(
-        f"[green]✓[/green] Séries desativadas salvas em"
-        f" [dim]{dest_dir}[/dim]"
+        f"[green]✓[/green] Séries desativadas salvas em [dim]{dest_dir}[/dim]"
     )
 
 
@@ -364,9 +326,7 @@ def metadata_bulk_cmd(
             help="Pular séries que já têm JSON de metadados no disco",
         ),
     ] = False,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Baixar metadados de múltiplas séries do SGS/BCB."""
     setup_rich_logging(verbose, console=console)
@@ -381,18 +341,13 @@ def metadata_bulk_cmd(
 
     if not ids:
         console.print(
-            "[red]Erro:[/red] forneça --ids-file ou pelo menos um"
-            " --series-id.",
+            "[red]Erro:[/red] forneça --ids-file ou pelo menos um --series-id.",
         )
         raise typer.Exit(code=1)
 
-    dest_dir = (
-        storage.get_data_dir(output, dt.date.today()) / "metadata"
-    )
+    dest_dir = storage.get_data_dir(output, dt.date.today()) / "metadata"
     with make_batch_progress(console) as progress:
-        task = progress.add_task(
-            "[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids)
-        )
+        task = progress.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
 
         def on_progress(
             processed: int,
@@ -426,13 +381,11 @@ def metadata_bulk_cmd(
 
     if failed_count:
         console.print(
-            f"[yellow]⚠[/yellow]  {successful} OK"
-            f" · [red]{failed_count} falha(s)[/red]"
+            f"[yellow]⚠[/yellow]  {successful} OK · [red]{failed_count} falha(s)[/red]"
         )
     else:
         console.print(
-            f"[green]✓[/green]  [bold]{successful}[/bold]"
-            " séries baixadas com sucesso."
+            f"[green]✓[/green]  [bold]{successful}[/bold] séries baixadas com sucesso."
         )
 
 
@@ -449,9 +402,7 @@ def extract_ids_cmd(
             help="Arquivo de saída (padrão: <output>/bcb-sgs_YYYY-MM/ids.txt)",
         ),
     ] = None,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Extrair IDs dos HTMLs baixados (arvore-grupos + series-desativadas)."""
     setup_rich_logging(verbose, console=console)
@@ -459,16 +410,13 @@ def extract_ids_cmd(
     with console.status("[cyan]Extraindo IDs dos HTMLs...[/cyan]"):
         ids = bulk.extract_ids_from_data_dir(data_dir)
     if not ids:
-        console.print(
-            f"[red]Erro:[/red] Nenhum ID encontrado em {data_dir}"
-        )
+        console.print(f"[red]Erro:[/red] Nenhum ID encontrado em {data_dir}")
         raise typer.Exit(code=1)
     outfile = ids_file or (data_dir / "ids.txt")
     outfile.parent.mkdir(parents=True, exist_ok=True)
     outfile.write_text("\n".join(str(i) for i in ids) + "\n")
     console.print(
-        f"[green]✓[/green] [bold]{len(ids)}[/bold] IDs únicos"
-        f" → [dim]{outfile}[/dim]"
+        f"[green]✓[/green] [bold]{len(ids)}[/bold] IDs únicos → [dim]{outfile}[/dim]"
     )
 
 
@@ -492,9 +440,7 @@ def pipeline_cmd(
             help="Pular séries que já têm JSON de metadados no disco",
         ),
     ] = False,
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Sincronizar o catálogo completo de metadados do SGS/BCB (4 passos)."""
     setup_rich_logging(verbose, console=console)
@@ -534,13 +480,9 @@ def pipeline_cmd(
                 results["Árvore de grupos"] = f"[red]✗ {exc}[/red]"
 
     # --- Passo 2 ---
-    console.print(
-        Rule("[bold]Passo 2/4: Séries desativadas[/bold]")
-    )
+    console.print(Rule("[bold]Passo 2/4: Séries desativadas[/bold]"))
     with make_batch_progress(console) as progress:
-        task = progress.add_task(
-            "[cyan]Séries desativadas[/cyan]", total=None
-        )
+        task = progress.add_task("[cyan]Séries desativadas[/cyan]", total=None)
 
         def on_page(page: int, n_pages: int) -> None:
             progress.update(task, completed=page, total=n_pages)
@@ -562,9 +504,7 @@ def pipeline_cmd(
     with console.status("[cyan]Extraindo IDs...[/cyan]"):
         ids = bulk.extract_ids_from_data_dir(data_dir)
     if not ids:
-        console.print(
-            "[red]Erro:[/red] Nenhum ID extraído — verifique erros acima."
-        )
+        console.print("[red]Erro:[/red] Nenhum ID extraído — verifique erros acima.")
         raise typer.Exit(code=1)
     ids_file = data_dir / "ids.txt"
     ids_file.parent.mkdir(parents=True, exist_ok=True)
@@ -578,9 +518,7 @@ def pipeline_cmd(
     # --- Passo 4 ---
     console.print(Rule("[bold]Passo 4/4: Metadados[/bold]"))
     with make_batch_progress(console) as progress:
-        task = progress.add_task(
-            "[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids)
-        )
+        task = progress.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
 
         def on_progress(
             processed: int,
@@ -614,8 +552,7 @@ def pipeline_cmd(
 
     if failed_count:
         results["Metadados"] = (
-            f"[green]{successful}✓[/green]"
-            f"  [red]{failed_count}✗[/red]"
+            f"[green]{successful}✓[/green]  [red]{failed_count}✗[/red]"
         )
     else:
         results["Metadados"] = f"[green]{successful}✓[/green]"
@@ -633,9 +570,7 @@ def pipeline_cmd(
 @series_sub.command("search")
 def search(
     text: Annotated[str, typer.Argument(help="Texto de busca")],
-    verbose: Annotated[
-        bool, typer.Option("--verbose", help="Logs detalhados")
-    ] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Buscar séries no SGS/BCB por texto."""
     from bs4 import BeautifulSoup

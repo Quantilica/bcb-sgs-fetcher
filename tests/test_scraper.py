@@ -16,9 +16,7 @@ def _make_transport(calls: list[tuple[str, str, bytes]]):
     """Build a MockTransport that captures (method, url, body) per call."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(
-            (request.method, str(request.url), bytes(request.content))
-        )
+        calls.append((request.method, str(request.url), bytes(request.content)))
         return httpx.Response(200, content=b"<html><body>ok</body></html>")
 
     return httpx.MockTransport(handler)

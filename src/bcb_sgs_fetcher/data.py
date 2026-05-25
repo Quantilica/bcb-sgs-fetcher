@@ -48,9 +48,7 @@ def get_url(series_id: int, period: Period = "all") -> str:
     return f"{API_BASE_URL}{series_id}/dados{latest}?formato=json"
 
 
-def _get_json(
-    url: str, client: HttpClient
-) -> list[dict[str, str | None]]:
+def _get_json(url: str, client: HttpClient) -> list[dict[str, str | None]]:
     """GET ``url`` and return the parsed JSON, asserting it is a list."""
     logger.info("Requesting data from %s", url)
     data = client.get_json(url)
@@ -59,17 +57,13 @@ def _get_json(
     return data
 
 
-def _parse_point(
-    raw: dict[str, str | None], series_id: int
-) -> SeriesPoint | None:
+def _parse_point(raw: dict[str, str | None], series_id: int) -> SeriesPoint | None:
     """Convert a raw API record into a :class:`SeriesPoint`."""
     try:
         point_date = dt.datetime.strptime(raw["data"], "%d/%m/%Y").date()
         data_fim = raw.get("dataFim")
         point_date_end = (
-            dt.datetime.strptime(data_fim, "%d/%m/%Y").date()
-            if data_fim
-            else None
+            dt.datetime.strptime(data_fim, "%d/%m/%Y").date() if data_fim else None
         )
         valor = raw["valor"]
         point_value = Decimal(valor) if valor else None
@@ -114,9 +108,7 @@ def get_daily_series(
     """
     raw_points: list[dict[str, str | None]] = []
 
-    url = (
-        f"{API_BASE_URL}{series_id}/dados/ultimos/20?formato=json"
-    )
+    url = f"{API_BASE_URL}{series_id}/dados/ultimos/20?formato=json"
     latest = _get_json(url=url, client=client)
     if not latest:
         return []
@@ -181,9 +173,7 @@ def fetch_series_data(
     try:
         raw = _get_json(url=url, client=client)
     except (ValueError, FetchError) as e:
-        logger.warning(
-            "Error fetching data for series %s: %s", series_id, e
-        )
+        logger.warning("Error fetching data for series %s: %s", series_id, e)
         return []
     parsed = (_parse_point(p, series_id) for p in raw)
     return [p for p in parsed if p is not None]

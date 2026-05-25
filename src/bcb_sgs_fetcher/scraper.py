@@ -95,9 +95,7 @@ class ScraperClient:
         # POST to land on the metadata frameset.
         req_data = {"hdOidSerieMetadados": series_id}
         params = {"method": "recuperarMetadadosPorDocn"}
-        response = self.session.post(
-            LOCALIZAR_SERIES_URL, params=params, data=req_data
-        )
+        response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
         response.raise_for_status()
 
         data: dict[str, bytes] = {}
@@ -120,9 +118,7 @@ class ScraperClient:
             "periodicidade": 0,
         }
         params = {"method": "localizarSeriesDesativadas"}
-        response = self.session.post(
-            LOCALIZAR_SERIES_URL, params=params, data=req_data
-        )
+        response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
         response.raise_for_status()
         return response.content
 
@@ -137,9 +133,7 @@ class ScraperClient:
             "periodicidade": 0,
         }
         params = {"method": "getPagina"}
-        response = self.session.post(
-            LOCALIZAR_SERIES_URL, params=params, data=req_data
-        )
+        response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
         response.raise_for_status()
         return response.content
 
@@ -153,9 +147,7 @@ class ScraperClient:
             "hdTipoPesquisa": 3,
         }
         params = {"method": "recuperarGruposPrincipais"}
-        r = self.session.post(
-            LOCALIZAR_SERIES_URL, data=req_data, params=params
-        )
+        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
         r.raise_for_status()
         return r.content
 
@@ -168,9 +160,7 @@ class ScraperClient:
             "hdSeqGrupoSelecionado": seq_grupo,
         }
         params = {"method": "prepararTelaLcsArvore"}
-        r = self.session.post(
-            LOCALIZAR_SERIES_URL, data=req_data, params=params
-        )
+        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
         r.raise_for_status()
         return r.content
 
@@ -185,9 +175,7 @@ class ScraperClient:
             "hdTipoOrdenacao": 0,
         }
         params = {"method": "localizarSeriesPorGrupo"}
-        r = self.session.post(
-            LOCALIZAR_SERIES_URL, data=req_data, params=params
-        )
+        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
         r.raise_for_status()
         return r.content
 
@@ -202,9 +190,7 @@ class ScraperClient:
             "hdTipoPesquisa": 0,
             "hdTipoOrdenacao": 0,
         }
-        r = self.session.post(
-            LOCALIZAR_SERIES_URL, data=req_data, params=params
-        )
+        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
         r.raise_for_status()
         return r.content
 
@@ -219,9 +205,7 @@ class ScraperClient:
             "hdTipoPesquisa": 0,
             "hdTipoOrdenacao": 0,
         }
-        r = self.session.post(
-            LOCALIZAR_SERIES_URL, data=req_data, params=params
-        )
+        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
         r.raise_for_status()
         return r.content
 

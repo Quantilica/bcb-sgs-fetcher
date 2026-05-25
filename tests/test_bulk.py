@@ -44,9 +44,7 @@ _ROW_TEMPLATE = (
 
 def _write_listing(path, rows):
     """Write a ``table#tabelaSeries`` listing page (latin-1)."""
-    body = "".join(
-        _ROW_TEMPLATE.format(sid=sid, freq=freq) for sid, freq in rows
-    )
+    body = "".join(_ROW_TEMPLATE.format(sid=sid, freq=freq) for sid, freq in rows)
     path.parent.mkdir(parents=True, exist_ok=True)
     html = _LISTING_TEMPLATE.format(rows=body)
     path.write_text(html, encoding="latin-1")
@@ -179,9 +177,7 @@ def test_fetch_data_bulk_skip_existing(tmp_path):
     today = dt.date.today()
 
     # Pre-create today's snapshot for series 1.
-    storage.save_json(
-        [{"series_id": 1}], storage.data_file_path(tmp_path, 1, today)
-    )
+    storage.save_json([{"series_id": 1}], storage.data_file_path(tmp_path, 1, today))
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -268,9 +264,7 @@ def test_fetch_data_bulk_concurrent(tmp_path):
     ids = {sid: "M" for sid in (1, 2, 3, 4, 5)}
 
     with SgsDataClient(transport=transport) as client:
-        ok, failed = fetch_data_bulk(
-            ids, client, tmp_path, workers=3, sleeptime=0
-        )
+        ok, failed = fetch_data_bulk(ids, client, tmp_path, workers=3, sleeptime=0)
 
     assert (ok, failed) == (5, 0)
     for sid in ids:
@@ -283,9 +277,7 @@ class _BoomClient:
     def __init__(self):
         self.calls: list[int] = []
 
-    def fetch_series_data(
-        self, series_id, period, frequency_acronym, should_stop
-    ):
+    def fetch_series_data(self, series_id, period, frequency_acronym, should_stop):
         self.calls.append(series_id)
         if len(self.calls) == 1:
             raise KeyboardInterrupt
@@ -325,9 +317,7 @@ def test_sync_rejects_series_id_and_ids_file_together(tmp_path):
     ids_file = tmp_path / "ids.txt"
     ids_file.write_text("1\n")
     with pytest.raises(SystemExit):
-        handle_fetch(
-            _sync_args(output=tmp_path, series_id=1, ids_file=ids_file)
-        )
+        handle_fetch(_sync_args(output=tmp_path, series_id=1, ids_file=ids_file))
 
 
 def test_sync_defaults_to_all_and_warns_when_empty(tmp_path):

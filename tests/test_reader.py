@@ -153,9 +153,4 @@ def test_parse_date_ultimo_valor_handles_all_frequencies():
     assert parse_date_ultimo_valor(
         {"fim": "01/02/2020", "frequencia_acronimo": "D"}
     ) == dt.date(2020, 2, 1)
-    assert (
-        parse_date_ultimo_valor(
-            {"fim": "-", "frequencia_acronimo": "D"}
-        )
-        is None
-    )
+    assert parse_date_ultimo_valor({"fim": "-", "frequencia_acronimo": "D"}) is None

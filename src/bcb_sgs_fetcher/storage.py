@@ -59,9 +59,7 @@ def data_file_path(
     instead of overwriting.
     """
     ts = timestamp if timestamp is not None else dt.datetime.now()
-    name = stamp_filename(
-        _series_slug(series_id), "json", ts, precision="datetime"
-    )
+    name = stamp_filename(_series_slug(series_id), "json", ts, precision="datetime")
     return output / _DATA_DATASET / name
 
 
@@ -72,14 +70,10 @@ def latest_series_file(output: Path, series_id: int) -> Path | None:
     recognizes both date-only and datetime stamps.
     """
     repo = StampedDataRepository(output)
-    return repo.get_latest_stamped_file(
-        _DATA_DATASET, _series_slug(series_id), "json"
-    )
+    return repo.get_latest_stamped_file(_DATA_DATASET, _series_slug(series_id), "json")
 
 
-def latest_series_datetime(
-    output: Path, series_id: int
-) -> dt.datetime | None:
+def latest_series_datetime(output: Path, series_id: int) -> dt.datetime | None:
     """Download timestamp of the newest snapshot for a series, or ``None``.
 
     Parses the stamp embedded in the filename. Recognizes both the datetime
@@ -101,9 +95,7 @@ def latest_series_datetime(
     return None
 
 
-def snapshot_exists_for_date(
-    output: Path, series_id: int, date: dt.date
-) -> bool:
+def snapshot_exists_for_date(output: Path, series_id: int, date: dt.date) -> bool:
     """Return True if any snapshot for the series exists for ``date``."""
     data_dir = output / _DATA_DATASET
     if not data_dir.exists():
@@ -165,9 +157,7 @@ def _find_metadata_file(output: Path, name: str) -> Path | None:
     direct = output / _METADATA_DIR / name
     if direct.exists():
         return direct
-    for meta_dir in sorted(
-        output.glob(f"bcb-sgs_*/{_METADATA_DIR}"), reverse=True
-    ):
+    for meta_dir in sorted(output.glob(f"bcb-sgs_*/{_METADATA_DIR}"), reverse=True):
         candidate = meta_dir / name
         if candidate.exists():
             return candidate
@@ -205,10 +195,7 @@ def read_full_metadata(output: Path, series_id: int) -> dict | None:
 
 def has_basic_metadata(output: Path, series_id: int) -> bool:
     """Return True if a split basic-metadata file exists for the series."""
-    return (
-        _find_metadata_file(output, f"{int(series_id):06d}_basic.json")
-        is not None
-    )
+    return _find_metadata_file(output, f"{int(series_id):06d}_basic.json") is not None
 
 
 def write_metadata(

@@ -75,9 +75,7 @@ def fetch_arvore_grupos(
 
     for file in sorted(dest_dir.glob("*-*.html")):
         try:
-            soup = BeautifulSoup(
-                file.read_text(encoding="latin-1"), "lxml"
-            )
+            soup = BeautifulSoup(file.read_text(encoding="latin-1"), "lxml")
             subgroup_links = ag_reader.extract_grupo_links(soup)
         except Exception as exc:
             logger.error("Failed to parse %s: %s", file, exc)
@@ -85,9 +83,7 @@ def fetch_arvore_grupos(
         group_dest_dir = dest_dir / file.stem
         for gl in subgroup_links:
             grupo_id = int(gl.grupo_id)
-            grupo_nome = (
-                gl.grupo_nome.replace("/", " ").replace(":", "_")
-            )
+            grupo_nome = gl.grupo_nome.replace("/", " ").replace(":", "_")
             _fetch_grupo_series_pages(
                 scraper,
                 grupo_id,
@@ -105,9 +101,7 @@ def _fetch_grupo_series_pages(
     sleeptime: float,
 ) -> None:
     page = 1
-    dest_file = (
-        dest_dir / f"{grupo_id:04d}-{grupo_nome}_{page:03d}.html"
-    )
+    dest_file = dest_dir / f"{grupo_id:04d}-{grupo_nome}_{page:03d}.html"
     init_done = False
 
     if dest_file.exists():
@@ -132,9 +126,7 @@ def _fetch_grupo_series_pages(
         return
 
     for page in range(2, n_pages + 1):
-        dest_file = (
-            dest_dir / f"{grupo_id:04d}-{grupo_nome}_{page:03d}.html"
-        )
+        dest_file = dest_dir / f"{grupo_id:04d}-{grupo_nome}_{page:03d}.html"
         if dest_file.exists():
             continue
         if not init_done:
@@ -222,9 +214,7 @@ def fetch_metadata_bulk(
     sleeptime: float = 10,
     max_session_retries: int = 3,
     skip_existing: bool = False,
-    on_progress: (
-        Callable[[int, int, int, int, int], None] | None
-    ) = None,
+    on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
 ) -> tuple[int, int]:
     """Download and parse metadata for a list of series IDs.
 
@@ -257,9 +247,7 @@ def fetch_metadata_bulk(
         session_retry = 0
         while session_retry < max_session_retries:
             try:
-                ok = _fetch_one_metadata(
-                    series_id, scraper, dest_dir, sleeptime
-                )
+                ok = _fetch_one_metadata(series_id, scraper, dest_dir, sleeptime)
                 if ok:
                     successful += 1
                 else:
@@ -267,14 +255,11 @@ def fetch_metadata_bulk(
                 break
             except Exception as exc:
                 session_retry += 1
-                logger.error(
-                    "Session error for series %d: %s", series_id, exc
-                )
+                logger.error("Session error for series %d: %s", series_id, exc)
                 if session_retry < max_session_retries:
                     wait = 10 * session_retry
                     logger.warning(
-                        "Renewing session, retrying series %d "
-                        "(%d/%d) after %ds",
+                        "Renewing session, retrying series %d (%d/%d) after %ds",
                         series_id,
                         session_retry,
                         max_session_retries,
@@ -305,14 +290,10 @@ def fetch_metadata_bulk(
     return successful, failed
 
 
-def _collect_freqs(
-    html_file: Path, freqs: dict[int, str | None]
-) -> None:
+def _collect_freqs(html_file: Path, freqs: dict[int, str | None]) -> None:
     """Parse one listing page, recording ``series_id -> acronym``."""
     try:
-        soup = BeautifulSoup(
-            html_file.read_bytes().decode("latin-1"), "lxml"
-        )
+        soup = BeautifulSoup(html_file.read_bytes().decode("latin-1"), "lxml")
         table = soup.select_one("table#tabelaSeries")
         if table is None:
             return
@@ -340,9 +321,7 @@ def extract_series_freq_map_from_data_dir(
         logger.warning("Diretório não encontrado: %s", arvore_dir)
     else:
         series_files = [
-            f
-            for f in sorted(arvore_dir.rglob("*.html"))
-            if f.parent != arvore_dir
+            f for f in sorted(arvore_dir.rglob("*.html")) if f.parent != arvore_dir
         ]
         logger.debug(
             "%d arquivo(s) de séries em %s",
@@ -356,9 +335,7 @@ def extract_series_freq_map_from_data_dir(
     if not desativ_dir.exists():
         logger.warning("Diretório não encontrado: %s", desativ_dir)
     else:
-        desativ_files = sorted(
-            desativ_dir.glob("series-desativadas_*.html")
-        )
+        desativ_files = sorted(desativ_dir.glob("series-desativadas_*.html"))
         logger.debug(
             "%d arquivo(s) de séries desativadas em %s",
             len(desativ_files),
@@ -423,9 +400,7 @@ def fetch_data_bulk(
     workers: int = 5,
     sleeptime: float = 0.5,
     date: dt.date | None = None,
-    on_progress: (
-        Callable[[int, int, int, int, int], None] | None
-    ) = None,
+    on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
 ) -> tuple[int, int]:
     """Fetch time-series data for many series concurrently.
 
@@ -481,9 +456,7 @@ def fetch_data_bulk(
                     logger.warning("Nenhum dado para série %d", series_id)
                     outcome = "skipped"
             except Exception as exc:
-                logger.error(
-                    "Falha ao baixar série %d: %s", series_id, exc
-                )
+                logger.error("Falha ao baixar série %d: %s", series_id, exc)
                 outcome = "failed"
             finally:
                 if not stop.is_set():
