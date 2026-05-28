@@ -28,7 +28,6 @@ COLUMNS = {
     "Sel.": "selecao",
     "Cód.": SERIES_ID,
     "Nome completo": SERIES_NAME_INDEX,
-    "Nome abreviado": SERIES_NAME_INDEX,
     "Unid.": UNIT_NAME,
     "Per.": FREQUENCY_ACRONYM,
     "Início dd/MM/aaaa": START,
