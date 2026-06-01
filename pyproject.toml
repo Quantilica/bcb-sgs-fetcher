@@ -44,7 +44,7 @@ bcb-sgs-fetcher = "bcb_sgs_fetcher.cli:main"
 [project.entry-points."quantilica.fetchers"]
 bcb-sgs = "bcb_sgs_fetcher.plugin:app"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.9.0",
@@ -55,13 +55,6 @@ packages = ["src/bcb_sgs_fetcher"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
-
-[tool.ruff]
-line-length = 88
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
 
 [build-system]
 requires = ["hatchling"]
