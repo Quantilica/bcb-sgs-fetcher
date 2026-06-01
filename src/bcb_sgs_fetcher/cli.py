@@ -9,6 +9,7 @@ Central Bank's Sistema Gerenciador de Séries Temporais.
 import argparse
 import dataclasses
 import datetime as dt
+import logging
 import sys
 from pathlib import Path
 
@@ -211,7 +212,7 @@ def handle_search(args: argparse.Namespace) -> None:
         print(f"{row.series_id:>6}  {row.series_name}")
 
 
-def set_parser() -> argparse.ArgumentParser:
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bcb-sgs-fetcher",
         description="Baixar dados e metadados do SGS/BCB.",
@@ -474,10 +475,13 @@ def set_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    parser = set_parser()
-    args = parser.parse_args()
+def main(argv: list[str] | None = None) -> None:
+    parser = get_parser()
+    args = parser.parse_args(argv)
     configure_cli_logging(verbose=args.verbose)
+    if not args.verbose:
+        logging.getLogger("quantilica_core").setLevel(logging.WARNING)
+        logging.getLogger("bcb_sgs_fetcher").setLevel(logging.WARNING)
     try:
         args.func(args)
     except KeyboardInterrupt:
