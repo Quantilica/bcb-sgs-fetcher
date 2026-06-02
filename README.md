@@ -59,16 +59,16 @@ Os comandos são agrupados em dois eixos: `series` (operações por série) e
 
 ```bash
 # Baixar dados de uma série
-quantilica fetch bcb-sgs series sync 1 -f D -o ./dados
+quantilica bcb-sgs series sync 1 -f D -o ./dados
 
 # Baixar metadados de uma série
-quantilica fetch bcb-sgs series metadata 1 -o ./dados
+quantilica bcb-sgs series metadata 1 -o ./dados
 
 # Buscar séries por texto
-quantilica fetch bcb-sgs series search "câmbio"
+quantilica bcb-sgs series search "câmbio"
 
 # Sincronizar o catálogo completo de metadados
-quantilica fetch bcb-sgs catalogo sync
+quantilica bcb-sgs catalogo sync
 ```
 
 ### CLI standalone
