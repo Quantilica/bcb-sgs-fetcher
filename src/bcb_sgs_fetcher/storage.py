@@ -24,8 +24,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from quantilica_core.files import write_bytes_atomic, write_text_atomic
-from quantilica_core.storage import StampedDataRepository, stamp_filename
+from quantilica.core.files import write_bytes_atomic, write_text_atomic
+from quantilica.core.storage import StampedDataRepository, stamp_filename
 
 from .constants import BASIC, FULL
 

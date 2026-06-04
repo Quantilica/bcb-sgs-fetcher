@@ -3,7 +3,7 @@
 Public surface:
 
 - :class:`SgsDataClient` — context-manager client that wraps a
-  ``quantilica_core.HttpClient`` and exposes the high-level
+  ``quantilica.core.HttpClient`` and exposes the high-level
   :meth:`SgsDataClient.fetch_series_data` method, which returns
   :class:`~bcb_sgs_fetcher.models.SeriesPoint` instances.
 - :func:`fetch_series_data` and :func:`get_daily_series` — module-level
@@ -18,8 +18,8 @@ from types import TracebackType
 from typing import Literal
 
 import httpx
-from quantilica_core.exceptions import FetchError
-from quantilica_core.http import HttpClient
+from quantilica.core.exceptions import FetchError
+from quantilica.core.http import HttpClient
 
 from . import logger
 from .models import SeriesPoint
@@ -99,7 +99,7 @@ def get_daily_series(
        window, accumulating points until the series start is reached.
 
     The API signals "before the series start" with an HTTP 404 (raising
-    :class:`~quantilica_core.exceptions.FetchError`); an unexpected
+    :class:`~quantilica.core.exceptions.FetchError`); an unexpected
     payload raises :class:`ValueError`; both end the walk and the points
     collected so far are returned. ``_MIN_DAILY_YEAR`` is a crash guard.
 

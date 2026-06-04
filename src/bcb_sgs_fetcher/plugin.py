@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from quantilica_core.cli import (
+from quantilica.core.cli import (
     get_console,
     make_batch_progress,
     setup_rich_logging,

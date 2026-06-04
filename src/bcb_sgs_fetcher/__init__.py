@@ -2,7 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from quantilica_core.logging import get_logger
+from quantilica.core.logging import get_logger
 
 logger = get_logger(__name__)
 

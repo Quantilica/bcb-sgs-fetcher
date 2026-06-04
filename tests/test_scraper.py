@@ -1,7 +1,6 @@
 """Tests for the BCB SGS HTML scraper."""
 
 import httpx
-
 from bcb_sgs_fetcher import (
     BASE_URL,
     LOCALIZAR_SERIES_URL,
@@ -88,8 +87,8 @@ def test_invalid_language_raises():
 
 def test_retry_exhaustion_raises_retryerror(monkeypatch):
     import pytest
-    from quantilica_core import retry as core_retry
-    from quantilica_core.retry import RetryError
+    from quantilica.core import retry as core_retry
+    from quantilica.core.retry import RetryError
 
     # The retry decorator uses retry_call's default ``sleep``, bound to
     # ``time.sleep`` at import time, so patching ``time.sleep`` globally

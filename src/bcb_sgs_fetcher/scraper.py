@@ -10,7 +10,7 @@ backoff, ``httpx`` transport errors only).
 from types import TracebackType
 
 import httpx
-from quantilica_core.retry import with_retry
+from quantilica.core.retry import with_retry
 
 from . import logger
 from .constants import BASIC, FULL
