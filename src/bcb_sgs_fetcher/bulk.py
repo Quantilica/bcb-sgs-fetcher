@@ -354,7 +354,7 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
     and all ``series-desativadas`` pages. Returns a sorted list of
     unique IDs.
 
-    This is the equivalent of ``sgs-process index`` in bcb-sgs-metadata-db:
+    This is the equivalent of ``sgs-process index`` in bcb-sgs-app:
     it bridges the gap between ``arvore-grupos`` / ``series-desativadas``
     downloads and ``metadata-bulk``.
     """
