@@ -9,7 +9,13 @@ Biblioteca Python para download de dados e metadados do **SGS** (Sistema Gerenci
 ## Instalação
 
 ```bash
-pip install git+https://github.com/Quantilica/bcb-sgs-fetcher.git
+pip install bcb-sgs-fetcher
+```
+
+Com [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv add bcb-sgs-fetcher
 ```
 
 ## Uso Rápido
