@@ -180,21 +180,6 @@ class ScraperClient:
         return r.content
 
     @_retry_http
-    def get_series_by_fonte(self, fonte_id: int) -> bytes:
-        """Get series listed for a "fonte" (source)."""
-        logger.info("Getting series by fonte: %s", fonte_id)
-        params = {"method": "localizarSeriesPorFonte"}
-        req_data = {
-            "fonte": fonte_id,
-            "periodicidade": 0,
-            "hdTipoPesquisa": 0,
-            "hdTipoOrdenacao": 0,
-        }
-        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
-        r.raise_for_status()
-        return r.content
-
-    @_retry_http
     def search_series_by_text(self, text: str) -> bytes:
         """Search series by free text."""
         logger.info("Getting series by text %s", text)

@@ -49,7 +49,6 @@ from .reader.metadata import (  # noqa: E402
     parse_metadata_basic,
     parse_metadata_full,
 )
-from .reader.search import parse_metadata_search  # noqa: E402
 from .reader.table_utils import (  # noqa: E402
     extract_table_data,
     get_n_pages,
@@ -100,6 +99,5 @@ __all__ = [
     "logger",
     "parse_metadata_basic",
     "parse_metadata_full",
-    "parse_metadata_search",
     "storage",
 ]

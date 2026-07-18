@@ -150,7 +150,6 @@ def parse_metadata_basic(html: str | bytes) -> SeriesMetadataBasic:
 def _get_last_update(table: Tag) -> dt.date | None:
     """Get last update date from the header table of the full iframe."""
     table_row = table.find("tr", recursive=False)
-    table_row.find_all("td", recursive=False)
     text = table_row.find_all("td", recursive=False)[-1].text
     match = re.search(r"\d{2}\/\d{2}\/\d{4}", text)
     if not match:

@@ -7,6 +7,12 @@ the source HTML. The public API exposes
 implementation details and not part of the package's stable interface.
 """
 
+from pathlib import Path
+
+# Default output directory for both CLIs (native argparse + typer plugin),
+# following the ``/data/<fonte>`` Docker-mount convention of the ecosystem.
+DEFAULT_OUTPUT_DIR = Path("/data/bcb-sgs")
+
 SERIES_ID = "series_id"
 SERIES_NAME_INDEX = "serie_indice"
 SERIES_NAME = "serie"

@@ -26,8 +26,9 @@ from bcb_sgs_fetcher import (
     parse_metadata_full,
     storage,
 )
+from bcb_sgs_fetcher.constants import DEFAULT_OUTPUT_DIR
 
-_DEFAULT_OUTPUT = Path("/data/bcb-sgs")
+_DEFAULT_OUTPUT = DEFAULT_OUTPUT_DIR
 
 
 def handle_fetch(args: argparse.Namespace) -> None:

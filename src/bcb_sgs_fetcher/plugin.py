@@ -33,6 +33,7 @@ from bcb_sgs_fetcher import (
     parse_metadata_full,
     storage,
 )
+from bcb_sgs_fetcher.constants import DEFAULT_OUTPUT_DIR
 
 app = typer.Typer(help="Dados do SGS/BCB (séries temporais).")
 series_sub = typer.Typer(help="Operações por série (dados, metadados, busca).")
@@ -43,7 +44,7 @@ app.add_typer(series_sub, name="series")
 app.add_typer(catalogo_sub, name="catalogo")
 console = get_console()
 
-_DEFAULT_OUTPUT = Path("/data/bcb-sgs")
+_DEFAULT_OUTPUT = DEFAULT_OUTPUT_DIR
 
 
 @series_sub.command("sync")
