@@ -1,12 +1,13 @@
 [project]
 name = "bcb-sgs-fetcher"
-version = "0.4.0"
+version = "0.5.0"
 description = "Fetcher for BCB SGS (Sistema Gerenciador de Séries Temporais)"
 readme = "README.md"
 authors = [
     { name = "Komesu, D.K.", email = "daniel@dkko.me" },
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 keywords = [
     "bcb",
@@ -19,18 +20,19 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
 ]
 dependencies = [
     "beautifulsoup4>=4.12",
+    "httpx>=0.28.1",
     "lxml>=5.0",
     "markdownify>=0.13",
-    "quantilica-core @ git+https://github.com/Quantilica/quantilica-core.git",
+    "quantilica-core>=0.3.1",
 ]
 
 [project.urls]
@@ -50,12 +52,23 @@ dev = [
     "ruff>=0.9.0",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-p", "no:cacheprovider"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# HTML fixtures embedded as string literals exceed the line length
+"tests/test_reader.py" = ["E501"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/bcb_sgs_fetcher"]
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"

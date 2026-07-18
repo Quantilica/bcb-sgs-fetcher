@@ -2,6 +2,8 @@
 
 import datetime as dt
 
+from bs4 import BeautifulSoup
+
 from bcb_sgs_fetcher import (
     SeriesMetadataBasic,
     extract_table_data,
@@ -9,7 +11,6 @@ from bcb_sgs_fetcher import (
     parse_metadata_basic,
 )
 from bcb_sgs_fetcher.reader.table_utils import parse_date_ultimo_valor
-from bs4 import BeautifulSoup
 
 BASIC_HTML = """
 <html><body>

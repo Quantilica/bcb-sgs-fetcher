@@ -209,7 +209,7 @@ def handle_search(args: argparse.Namespace) -> None:
         print("Nenhum resultado encontrado.")
         return
     for row in rows:
-        print(f"{row.series_id:>6}  {row.series_name}")
+        print(f"{row.series_id:>6}  {row.name_index}")
 
 
 def get_parser() -> argparse.ArgumentParser:

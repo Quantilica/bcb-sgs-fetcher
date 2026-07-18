@@ -46,7 +46,7 @@ with ScraperClient() as scraper:
     basic = parse_metadata_basic(htmls["basic"])
     full = parse_metadata_full(htmls["full"])
 
-print(basic.name, basic.frequency_acronym)
+print(basic.name, basic.frequency)
 print(full.last_update, len(full.provider_data))
 ```
 

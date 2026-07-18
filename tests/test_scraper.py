@@ -1,6 +1,7 @@
 """Tests for the BCB SGS HTML scraper."""
 
 import httpx
+
 from bcb_sgs_fetcher import (
     BASE_URL,
     LOCALIZAR_SERIES_URL,

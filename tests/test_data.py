@@ -6,13 +6,14 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from quantilica.core.http import HttpClient
+
 from bcb_sgs_fetcher import (
     SeriesPoint,
     SgsDataClient,
     fetch_series_data,
     get_url,
 )
-from quantilica.core.http import HttpClient
 
 
 def test_get_url_all():

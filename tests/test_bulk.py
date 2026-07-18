@@ -8,6 +8,7 @@ import time
 
 import httpx
 import pytest
+
 from bcb_sgs_fetcher import (
     SgsDataClient,
     bulk,
