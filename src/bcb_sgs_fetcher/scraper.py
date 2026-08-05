@@ -7,6 +7,7 @@ method is wrapped with ``quantilica-core`` retries (exponential
 backoff, ``httpx`` transport errors only).
 """
 
+from collections.abc import Callable
 from types import TracebackType
 
 import httpx
@@ -85,7 +86,9 @@ class ScraperClient:
         self.session = session
 
     @_retry_http
-    def request_metadata_html(self, series_id: int) -> dict[str, bytes]:
+    def request_metadata_html(
+        self, series_id: int, progress: Callable[[int, int], None] | None = None
+    ) -> dict[str, bytes]:
         """Fetch the two metadata iframes for a series.
 
         Returns a dict keyed by ``"basic"`` and ``"full"`` with raw HTML
@@ -98,14 +101,24 @@ class ScraperClient:
         response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
         response.raise_for_status()
 
-        data: dict[str, bytes] = {}
-        r_basic = self.session.get(METADADOS_BASICOS_URL)
-        r_basic.raise_for_status()
-        data[BASIC] = r_basic.content
+        def _get_with_progress(url: str, current_downloaded: int) -> tuple[bytes, int]:
+            downloaded = 0
+            chunks = []
+            with self.session.stream("GET", url) as stream_resp:
+                stream_resp.raise_for_status()
+                for chunk in stream_resp.iter_bytes():
+                    chunks.append(chunk)
+                    downloaded += len(chunk)
+                    if progress is not None:
+                        progress(current_downloaded + downloaded, 0)
+            return b"".join(chunks), downloaded
 
-        r_full = self.session.get(METADADOS_FULL_URL)
-        r_full.raise_for_status()
-        data[FULL] = r_full.content
+        data: dict[str, bytes] = {}
+        content_basic, basic_size = _get_with_progress(METADADOS_BASICOS_URL, 0)
+        data[BASIC] = content_basic
+
+        content_full, _ = _get_with_progress(METADADOS_FULL_URL, basic_size)
+        data[FULL] = content_full
         return data
 
     @_retry_http

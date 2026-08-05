@@ -226,6 +226,7 @@ def fetch_metadata_bulk(
     on_start: Callable[[int], None] | None = None,
     on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
     on_finish: Callable[[int, str], None] | None = None,
+    on_file_progress: Callable[[int, int, int], None] | None = None,
 ) -> tuple[int, int]:
     """Download and parse metadata for a list of series IDs.
 
@@ -274,8 +275,13 @@ def fetch_metadata_bulk(
             session_retry = 0
             while session_retry < max_session_retries:
                 try:
+
+                    def _prog(dl: int, tot: int) -> None:
+                        if on_file_progress:
+                            on_file_progress(series_id, dl, tot)
+
                     ok = _fetch_one_metadata(
-                        series_id, worker_scraper, dest_dir, sleeptime
+                        series_id, worker_scraper, dest_dir, sleeptime, _prog
                     )
                     outcome = "ok" if ok else "failed"
                     break
@@ -453,6 +459,7 @@ def fetch_data_bulk(
     on_start: Callable[[int], None] | None = None,
     on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
     on_finish: Callable[[int, str], None] | None = None,
+    on_file_progress: Callable[[int, int, int], None] | None = None,
 ) -> tuple[int, int]:
     """Fetch time-series data for many series concurrently.
 
@@ -491,11 +498,17 @@ def fetch_data_bulk(
             outcome = "skipped"
         else:
             try:
+
+                def _prog(dl: int, tot: int) -> None:
+                    if on_file_progress:
+                        on_file_progress(series_id, dl, tot)
+
                 points = client.fetch_series_data(
                     series_id=series_id,
                     period=period,
                     frequency_acronym=freq,
                     should_stop=stop.is_set,
+                    progress=_prog,
                 )
                 if stop.is_set():
                     return  # cancelled mid-fetch — don't persist partial
@@ -560,6 +573,7 @@ def _fetch_one_metadata(
     scraper: ScraperClient,
     dest_dir: Path,
     sleeptime: float,
+    progress: Callable[[int, int], None] | None = None,
 ) -> bool:
     dest_basic = dest_dir / f"{series_id:06d}_basic.html"
     dest_full = dest_dir / f"{series_id:06d}_full.html"
@@ -572,7 +586,7 @@ def _fetch_one_metadata(
         }
     else:
         logger.debug("Fetching metadata for series %d", series_id)
-        html = scraper.request_metadata_html(series_id)
+        html = scraper.request_metadata_html(series_id, progress=progress)
         storage.save_bytes(html[BASIC], dest_basic)
         storage.save_bytes(html[FULL], dest_full)
         downloaded = True

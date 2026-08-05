@@ -48,10 +48,12 @@ def get_url(series_id: int, period: Period = "all") -> str:
     return f"{API_BASE_URL}{series_id}/dados{latest}?formato=json"
 
 
-def _get_json(url: str, client: HttpClient) -> list[dict[str, str | None]]:
+def _get_json(
+    url: str, client: HttpClient, progress: Callable[[int, int], None] | None = None
+) -> list[dict[str, str | None]]:
     """GET ``url`` and return the parsed JSON, asserting it is a list."""
     logger.info("Requesting data from %s", url)
-    data = client.get_json(url)
+    data = client.get_json(url, progress=progress)
     if not isinstance(data, list):
         raise ValueError(f"Unexpected response format: {data}")
     return data
@@ -87,6 +89,7 @@ def get_daily_series(
     series_id: int,
     client: HttpClient,
     should_stop: Callable[[], bool] | None = None,
+    progress: Callable[[int, int], None] | None = None,
 ) -> list[SeriesPoint]:
     """Fetch a daily series using the year-by-year retroactive strategy.
 
@@ -109,7 +112,7 @@ def get_daily_series(
     raw_points: list[dict[str, str | None]] = []
 
     url = f"{API_BASE_URL}{series_id}/dados/ultimos/20?formato=json"
-    latest = _get_json(url=url, client=client)
+    latest = _get_json(url=url, client=client, progress=progress)
     if not latest:
         return []
     raw_points.extend(latest)
@@ -129,7 +132,7 @@ def get_daily_series(
             f"&dataFinal={last_date:%d/%m/%Y}"
         )
         try:
-            data_in_interval = _get_json(url=url, client=client)
+            data_in_interval = _get_json(url=url, client=client, progress=progress)
         except (ValueError, FetchError):
             break
         if not data_in_interval:
@@ -149,6 +152,7 @@ def fetch_series_data(
     period: Period = "all",
     frequency_acronym: str | None = None,
     should_stop: Callable[[], bool] | None = None,
+    progress: Callable[[int, int], None] | None = None,
 ) -> list[SeriesPoint]:
     """Fetch the time series for ``series_id``.
 
@@ -166,12 +170,15 @@ def fetch_series_data(
     logger.info("Fetching data series %s", series_id)
     if frequency_acronym == "D" and period == "all":
         return get_daily_series(
-            series_id=series_id, client=client, should_stop=should_stop
+            series_id=series_id,
+            client=client,
+            should_stop=should_stop,
+            progress=progress,
         )
 
     url = get_url(series_id=series_id, period=period)
     try:
-        raw = _get_json(url=url, client=client)
+        raw = _get_json(url=url, client=client, progress=progress)
     except (ValueError, FetchError) as e:
         logger.warning("Error fetching data for series %s: %s", series_id, e)
         return []
@@ -201,6 +208,7 @@ class SgsDataClient:
         period: Period = "all",
         frequency_acronym: str | None = None,
         should_stop: Callable[[], bool] | None = None,
+        progress: Callable[[int, int], None] | None = None,
     ) -> list[SeriesPoint]:
         """Same as :func:`fetch_series_data` using the bound client."""
         return fetch_series_data(
@@ -209,18 +217,21 @@ class SgsDataClient:
             period=period,
             frequency_acronym=frequency_acronym,
             should_stop=should_stop,
+            progress=progress,
         )
 
     def get_daily_series(
         self,
         series_id: int,
         should_stop: Callable[[], bool] | None = None,
+        progress: Callable[[int, int], None] | None = None,
     ) -> list[SeriesPoint]:
         """Same as :func:`get_daily_series` using the bound client."""
         return get_daily_series(
             series_id=series_id,
             client=self.client,
             should_stop=should_stop,
+            progress=progress,
         )
 
     def close(self) -> None:

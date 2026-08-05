@@ -160,6 +160,14 @@ def fetch(
                     if task_id is not None:
                         file_prog.remove_task(task_id)
 
+            def on_file_progress(series_id: int, downloaded: int, total: int) -> None:
+                with lock:
+                    task_id = active_tasks.get(series_id)
+                    if task_id is not None:
+                        file_prog.update(
+                            task_id, completed=downloaded, total=total or None
+                        )
+
             with SgsDataClient() as client:
                 successful, failed_count = bulk.fetch_data_bulk(
                     series_freqs,
@@ -172,6 +180,7 @@ def fetch(
                     on_start=on_start,
                     on_progress=on_progress,
                     on_finish=on_finish,
+                    on_file_progress=on_file_progress,
                 )
     except KeyboardInterrupt:
         console.print("\n[yellow]Cancelado pelo usuário.[/yellow]")
@@ -424,6 +433,12 @@ def metadata_bulk_cmd(
                 if task_id is not None:
                     file_prog.remove_task(task_id)
 
+        def on_file_progress(series_id: int, downloaded: int, total: int) -> None:
+            with lock:
+                task_id = active_tasks.get(series_id)
+                if task_id is not None:
+                    file_prog.update(task_id, completed=downloaded, total=total or None)
+
         scraper = ScraperClient()
         try:
             successful, failed_count = bulk.fetch_metadata_bulk(
@@ -436,6 +451,7 @@ def metadata_bulk_cmd(
                 on_start=on_start,
                 on_progress=on_progress,
                 on_finish=on_finish,
+                on_file_progress=on_file_progress,
             )
         finally:
             scraper.close()
@@ -633,6 +649,12 @@ def pipeline_cmd(
                 if task_id is not None:
                     file_prog.remove_task(task_id)
 
+        def on_file_progress(series_id: int, downloaded: int, total: int) -> None:
+            with lock:
+                task_id = active_tasks.get(series_id)
+                if task_id is not None:
+                    file_prog.update(task_id, completed=downloaded, total=total or None)
+
         scraper = ScraperClient()
         try:
             successful, failed_count = bulk.fetch_metadata_bulk(
@@ -645,6 +667,7 @@ def pipeline_cmd(
                 on_start=on_start,
                 on_progress=on_progress,
                 on_finish=on_finish,
+                on_file_progress=on_file_progress,
             )
         finally:
             scraper.close()
