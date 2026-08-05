@@ -32,6 +32,7 @@ def fetch_arvore_grupos(
     dest_dir: Path,
     sleeptime: float = 10,
     on_grupo: Callable[[str, int, int], None] | None = None,
+    on_subgrupo_page: Callable[[str, int, int], None] | None = None,
 ) -> None:
     """Download the full group tree and paginated series listings.
 
@@ -90,6 +91,7 @@ def fetch_arvore_grupos(
                 grupo_nome,
                 group_dest_dir,
                 sleeptime,
+                on_subgrupo_page,
             )
 
 
@@ -99,6 +101,7 @@ def _fetch_grupo_series_pages(
     grupo_nome: str,
     dest_dir: Path,
     sleeptime: float,
+    on_page: Callable[[str, int, int], None] | None = None,
 ) -> None:
     page = 1
     dest_file = dest_dir / f"{grupo_id:04d}-{grupo_nome}_{page:03d}.html"
@@ -122,6 +125,9 @@ def _fetch_grupo_series_pages(
 
     soup = BeautifulSoup(content.decode("latin-1"), "lxml")
     n_pages = table_utils.get_n_pages(soup)
+    if on_page is not None:
+        on_page(grupo_nome, 1, n_pages)
+
     if n_pages == 1:
         return
 
@@ -159,6 +165,8 @@ def _fetch_grupo_series_pages(
                 exc,
             )
             continue
+        if on_page is not None:
+            on_page(grupo_nome, page, n_pages)
         time.sleep(sleeptime)
 
 
@@ -234,9 +242,7 @@ def fetch_metadata_bulk(
     Returns:
         ``(successful, failed)`` counts.
     """
-    successful = 0
-    failed = 0
-    skipped = 0
+
     total = len(series_ids)
     lock = threading.Lock()
     counters = {"processed": 0, "ok": 0, "failed": 0, "skipped": 0}

@@ -255,6 +255,7 @@ def arvore_grupos_cmd(
         console=console,
     ) as progress:
         task = progress.add_task("[cyan]Iniciando...[/cyan]", total=None)
+        sub_task = progress.add_task("[dim]Buscando páginas...[/dim]", total=None)
 
         def on_grupo(nome: str, done: int, total: int) -> None:
             progress.update(
@@ -264,9 +265,21 @@ def arvore_grupos_cmd(
                 description=f"[cyan]{nome[:40]}[/cyan]",
             )
 
+        def on_subgrupo_page(nome: str, page: int, total_pages: int) -> None:
+            progress.update(
+                sub_task,
+                completed=page,
+                total=total_pages,
+                description=f"[dim]{nome[:30]}[/dim]",
+            )
+
         with ScraperClient() as scraper:
             bulk.fetch_arvore_grupos(
-                scraper, dest_dir, sleeptime=sleeptime, on_grupo=on_grupo
+                scraper,
+                dest_dir,
+                sleeptime=sleeptime,
+                on_grupo=on_grupo,
+                on_subgrupo_page=on_subgrupo_page,
             )
 
     console.print(f"[green]✓[/green] Árvore de grupos salva em [dim]{dest_dir}[/dim]")
@@ -500,6 +513,7 @@ def pipeline_cmd(
         console=console,
     ) as progress:
         task = progress.add_task("[cyan]Iniciando...[/cyan]", total=None)
+        sub_task = progress.add_task("[dim]Buscando páginas...[/dim]", total=None)
 
         def on_grupo(nome: str, done: int, total: int) -> None:
             progress.update(
@@ -509,6 +523,14 @@ def pipeline_cmd(
                 description=f"[cyan]{nome[:40]}[/cyan]",
             )
 
+        def on_subgrupo_page(nome: str, page: int, total_pages: int) -> None:
+            progress.update(
+                sub_task,
+                completed=page,
+                total=total_pages,
+                description=f"[dim]{nome[:30]}[/dim]",
+            )
+
         with ScraperClient() as scraper:
             try:
                 bulk.fetch_arvore_grupos(
@@ -516,6 +538,7 @@ def pipeline_cmd(
                     data_dir / "arvore-grupos",
                     sleeptime=sleeptime,
                     on_grupo=on_grupo,
+                    on_subgrupo_page=on_subgrupo_page,
                 )
                 results["Árvore de grupos"] = "[green]✓[/green]"
             except Exception as exc:
