@@ -121,10 +121,15 @@ def fetch(
     try:
         import threading
 
-        from quantilica.core.cli import make_download_progress
+        from quantilica.core.cli import make_batch_progress, make_download_progress
+        from rich.console import Group
+        from rich.live import Live
 
-        with make_download_progress(console) as progress:
-            task = progress.add_task(
+        overall = make_batch_progress(console)
+        file_prog = make_download_progress(console)
+
+        with Live(Group(overall, file_prog), console=console, refresh_per_second=10):
+            task = overall.add_task(
                 "[cyan]0✓  0✗  0 skip[/cyan]", total=len(series_freqs)
             )
             active_tasks: dict[int, int] = {}
@@ -132,20 +137,20 @@ def fetch(
 
             def on_start(series_id: int) -> None:
                 with lock:
-                    active_tasks[series_id] = progress.add_task(
+                    active_tasks[series_id] = file_prog.add_task(
                         f"Série {series_id}", total=None
                     )
 
             def on_progress(
                 processed: int, total: int, ok: int, failed: int, skipped: int
             ) -> None:
-                progress.update(
+                overall.update(
                     task,
                     completed=processed,
                     description=(
-                        f"[green]{ok}✓[/green]"
-                        f"  [red]{failed}✗[/red]"
-                        f"  [dim]{skipped} skip[/dim]"
+                        f"[green]{ok}✓[/green]  "
+                        f"[red]{failed}✗[/red]  "
+                        f"[dim]{skipped} skip[/dim]"
                     ),
                 )
 
@@ -153,7 +158,7 @@ def fetch(
                 with lock:
                     task_id = active_tasks.pop(series_id, None)
                     if task_id is not None:
-                        progress.remove_task(task_id)
+                        file_prog.remove_task(task_id)
 
             with SgsDataClient() as client:
                 successful, failed_count = bulk.fetch_data_bulk(
@@ -382,29 +387,34 @@ def metadata_bulk_cmd(
     dest_dir = storage.get_data_dir(output, dt.date.today()) / "metadata"
     import threading
 
-    from quantilica.core.cli import make_download_progress
+    from quantilica.core.cli import make_batch_progress, make_download_progress
+    from rich.console import Group
+    from rich.live import Live
 
-    with make_download_progress(console) as progress:
-        task = progress.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
+    overall = make_batch_progress(console)
+    file_prog = make_download_progress(console)
+
+    with Live(Group(overall, file_prog), console=console, refresh_per_second=10):
+        task = overall.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
         active_tasks: dict[int, int] = {}
         lock = threading.Lock()
 
         def on_start(series_id: int) -> None:
             with lock:
-                active_tasks[series_id] = progress.add_task(
+                active_tasks[series_id] = file_prog.add_task(
                     f"Metadados {series_id}", total=None
                 )
 
         def on_progress(
             processed: int, total: int, ok: int, failed: int, skipped: int
         ) -> None:
-            progress.update(
+            overall.update(
                 task,
                 completed=processed,
                 description=(
-                    f"[green]{ok}✓[/green]"
-                    f"  [red]{failed}✗[/red]"
-                    f"  [dim]{skipped} skip[/dim]"
+                    f"[green]{ok}✓[/green]  "
+                    f"[red]{failed}✗[/red]  "
+                    f"[dim]{skipped} skip[/dim]"
                 ),
             )
 
@@ -412,7 +422,7 @@ def metadata_bulk_cmd(
             with lock:
                 task_id = active_tasks.pop(series_id, None)
                 if task_id is not None:
-                    progress.remove_task(task_id)
+                    file_prog.remove_task(task_id)
 
         scraper = ScraperClient()
         try:
@@ -546,6 +556,8 @@ def pipeline_cmd(
 
     # --- Passo 2 ---
     console.print(Rule("[bold]Passo 2/4: Séries desativadas[/bold]"))
+    from quantilica.core.cli import make_batch_progress
+
     with make_batch_progress(console) as progress:
         task = progress.add_task("[cyan]Séries desativadas[/cyan]", total=None)
 
@@ -584,29 +596,34 @@ def pipeline_cmd(
     console.print(Rule("[bold]Passo 4/4: Metadados[/bold]"))
     import threading
 
-    from quantilica.core.cli import make_download_progress
+    from quantilica.core.cli import make_batch_progress, make_download_progress
+    from rich.console import Group
+    from rich.live import Live
 
-    with make_download_progress(console) as progress:
-        task = progress.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
+    overall = make_batch_progress(console)
+    file_prog = make_download_progress(console)
+
+    with Live(Group(overall, file_prog), console=console, refresh_per_second=10):
+        task = overall.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
         active_tasks: dict[int, int] = {}
         lock = threading.Lock()
 
         def on_start(series_id: int) -> None:
             with lock:
-                active_tasks[series_id] = progress.add_task(
+                active_tasks[series_id] = file_prog.add_task(
                     f"Metadados {series_id}", total=None
                 )
 
         def on_progress(
             processed: int, total: int, ok: int, failed: int, skipped: int
         ) -> None:
-            progress.update(
+            overall.update(
                 task,
                 completed=processed,
                 description=(
-                    f"[green]{ok}✓[/green]"
-                    f"  [red]{failed}✗[/red]"
-                    f"  [dim]{skipped} skip[/dim]"
+                    f"[green]{ok}✓[/green]  "
+                    f"[red]{failed}✗[/red]  "
+                    f"[dim]{skipped} skip[/dim]"
                 ),
             )
 
@@ -614,7 +631,7 @@ def pipeline_cmd(
             with lock:
                 task_id = active_tasks.pop(series_id, None)
                 if task_id is not None:
-                    progress.remove_task(task_id)
+                    file_prog.remove_task(task_id)
 
         scraper = ScraperClient()
         try:
