@@ -153,7 +153,7 @@ def fetch(
                 with lock:
                     task_id = active_tasks.pop(series_id, None)
                     if task_id is not None:
-                        pass
+                        progress.remove_task(task_id)
 
             with SgsDataClient() as client:
                 successful, failed_count = bulk.fetch_data_bulk(
@@ -399,7 +399,7 @@ def metadata_bulk_cmd(
             with lock:
                 task_id = active_tasks.pop(series_id, None)
                 if task_id is not None:
-                    pass
+                    progress.remove_task(task_id)
 
         scraper = ScraperClient()
         try:
@@ -591,7 +591,7 @@ def pipeline_cmd(
             with lock:
                 task_id = active_tasks.pop(series_id, None)
                 if task_id is not None:
-                    pass
+                    progress.remove_task(task_id)
 
         scraper = ScraperClient()
         try:
