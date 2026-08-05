@@ -214,7 +214,10 @@ def fetch_metadata_bulk(
     sleeptime: float = 10,
     max_session_retries: int = 3,
     skip_existing: bool = False,
+    workers: int = 4,
+    on_start: Callable[[int], None] | None = None,
     on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
+    on_finish: Callable[[int, str], None] | None = None,
 ) -> tuple[int, int]:
     """Download and parse metadata for a list of series IDs.
 
@@ -235,59 +238,100 @@ def fetch_metadata_bulk(
     failed = 0
     skipped = 0
     total = len(series_ids)
-    processed = 0
+    lock = threading.Lock()
+    counters = {"processed": 0, "ok": 0, "failed": 0, "skipped": 0}
+    stop = threading.Event()
 
-    for series_id in sorted(series_ids):
+    thread_local = threading.local()
+
+    def get_scraper() -> ScraperClient:
+        if not hasattr(thread_local, "client"):
+            thread_local.client = ScraperClient(
+                timeout=scraper.timeout,
+                language=scraper.language,
+                transport=scraper._transport,
+            )
+        return thread_local.client
+
+    def _worker(series_id: int) -> None:
+        if stop.is_set():
+            return
+
+        if on_start is not None:
+            on_start(series_id)
+
+        outcome = ""
         if skip_existing and (dest_dir / f"{series_id:06d}.json").exists():
-            skipped += 1
-            processed += 1
-            if on_progress is not None:
-                on_progress(processed, total, successful, failed, skipped)
-            continue
-        session_retry = 0
-        while session_retry < max_session_retries:
-            try:
-                ok = _fetch_one_metadata(series_id, scraper, dest_dir, sleeptime)
-                if ok:
-                    successful += 1
-                else:
-                    failed += 1
-                break
-            except Exception as exc:
-                session_retry += 1
-                logger.error("Session error for series %d: %s", series_id, exc)
-                if session_retry < max_session_retries:
-                    wait = 10 * session_retry
-                    logger.warning(
-                        "Renewing session, retrying series %d (%d/%d) after %ds",
-                        series_id,
-                        session_retry,
-                        max_session_retries,
-                        wait,
+            outcome = "skipped"
+        else:
+            worker_scraper = get_scraper()
+            session_retry = 0
+            while session_retry < max_session_retries:
+                try:
+                    ok = _fetch_one_metadata(
+                        series_id, worker_scraper, dest_dir, sleeptime
                     )
-                    if scraper.session is not None:
-                        scraper.session.close()
-                    time.sleep(wait)
-                    scraper.init_session()
-                else:
-                    logger.error(
-                        "Giving up on series %d after %d retries",
-                        series_id,
-                        max_session_retries,
-                    )
-                    failed += 1
+                    outcome = "ok" if ok else "failed"
+                    break
+                except Exception as exc:
+                    session_retry += 1
+                    logger.error("Session error for series %d: %s", series_id, exc)
+                    if session_retry < max_session_retries:
+                        wait = 10 * session_retry
+                        logger.warning(
+                            "Renewing session, retrying series %d (%d/%d) after %ds",
+                            series_id,
+                            session_retry,
+                            max_session_retries,
+                            wait,
+                        )
+                        if worker_scraper.session is not None:
+                            worker_scraper.session.close()
+                        time.sleep(wait)
+                        worker_scraper.init_session()
+                    else:
+                        logger.error(
+                            "Giving up on series %d after %d retries",
+                            series_id,
+                            max_session_retries,
+                        )
+                        outcome = "failed"
 
-        processed += 1
-        if on_progress is not None:
-            on_progress(processed, total, successful, failed, skipped)
+        with lock:
+            counters[outcome] += 1
+            counters["processed"] += 1
+            if on_progress is not None:
+                on_progress(
+                    counters["processed"],
+                    total,
+                    counters["ok"],
+                    counters["failed"],
+                    counters["skipped"],
+                )
+            if on_finish is not None:
+                on_finish(series_id, outcome)
+
+    executor = ThreadPoolExecutor(max_workers=workers)
+    futures = [executor.submit(_worker, series_id) for series_id in sorted(series_ids)]
+    try:
+        for future in as_completed(futures):
+            future.result()
+    except KeyboardInterrupt:
+        logger.warning("Interrompido — cancelando downloads pendentes...")
+        stop.set()
+        for future in futures:
+            future.cancel()
+        raise
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
 
     logger.info(
         "Completed: %d successful, %d failed, %d skipped",
-        successful,
-        failed,
-        skipped,
+        counters["ok"],
+        counters["failed"],
+        counters["skipped"],
     )
-    return successful, failed
+    return counters["ok"], counters["failed"]
 
 
 def _collect_freqs(html_file: Path, freqs: dict[int, str | None]) -> None:
@@ -400,7 +444,9 @@ def fetch_data_bulk(
     workers: int = 5,
     sleeptime: float = 0.5,
     date: dt.date | None = None,
+    on_start: Callable[[int], None] | None = None,
     on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
+    on_finish: Callable[[int, str], None] | None = None,
 ) -> tuple[int, int]:
     """Fetch time-series data for many series concurrently.
 
@@ -431,6 +477,8 @@ def fetch_data_bulk(
     def _worker(series_id: int, freq: str | None) -> None:
         if stop.is_set():
             return
+        if on_start is not None:
+            on_start(series_id)
         if skip_existing and storage.snapshot_exists_for_date(
             output, series_id, snapshot_date
         ):
@@ -472,6 +520,8 @@ def fetch_data_bulk(
                     counters["failed"],
                     counters["skipped"],
                 )
+            if on_finish is not None:
+                on_finish(series_id, outcome)
 
     executor = ThreadPoolExecutor(max_workers=workers)
     futures = [

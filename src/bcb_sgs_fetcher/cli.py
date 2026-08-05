@@ -120,6 +120,7 @@ def handle_metadata_bulk(args: argparse.Namespace) -> None:
             dest_dir,
             sleeptime=args.sleeptime,
             skip_existing=args.skip_existing,
+            workers=args.workers,
         )
     finally:
         scraper.close()
@@ -182,6 +183,7 @@ def handle_pipeline(args: argparse.Namespace) -> None:
             data_dir / "metadata",
             sleeptime=args.sleeptime,
             skip_existing=args.skip_existing,
+            workers=args.workers,
         )
     finally:
         scraper.close()
@@ -366,6 +368,12 @@ def get_parser() -> argparse.ArgumentParser:
         default=False,
         help="Pular séries que já têm JSON de metadados no disco",
     )
+    pipeline_parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Downloads concorrentes de metadados (padrão: 4)",
+    )
     pipeline_parser.set_defaults(func=handle_pipeline)
 
     # catalogo arvore-grupos
@@ -470,6 +478,12 @@ def get_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Pular séries que já têm JSON de metadados no disco",
+    )
+    meta_bulk_parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Downloads concorrentes (padrão: 4)",
     )
     meta_bulk_parser.set_defaults(func=handle_metadata_bulk)
 

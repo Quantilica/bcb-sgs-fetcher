@@ -119,17 +119,25 @@ def fetch(
         return
 
     try:
-        with make_batch_progress(console) as progress:
+        import threading
+
+        from quantilica.core.cli import make_download_progress
+
+        with make_download_progress(console) as progress:
             task = progress.add_task(
                 "[cyan]0✓  0✗  0 skip[/cyan]", total=len(series_freqs)
             )
+            active_tasks: dict[int, int] = {}
+            lock = threading.Lock()
+
+            def on_start(series_id: int) -> None:
+                with lock:
+                    active_tasks[series_id] = progress.add_task(
+                        f"Série {series_id}", total=None
+                    )
 
             def on_progress(
-                processed: int,
-                total: int,
-                ok: int,
-                failed: int,
-                skipped: int,
+                processed: int, total: int, ok: int, failed: int, skipped: int
             ) -> None:
                 progress.update(
                     task,
@@ -141,6 +149,12 @@ def fetch(
                     ),
                 )
 
+            def on_finish(series_id: int, outcome: str) -> None:
+                with lock:
+                    task_id = active_tasks.pop(series_id, None)
+                    if task_id is not None:
+                        pass
+
             with SgsDataClient() as client:
                 successful, failed_count = bulk.fetch_data_bulk(
                     series_freqs,
@@ -150,7 +164,9 @@ def fetch(
                     skip_existing=skip_existing,
                     workers=workers,
                     sleeptime=sleeptime,
+                    on_start=on_start,
                     on_progress=on_progress,
+                    on_finish=on_finish,
                 )
     except KeyboardInterrupt:
         console.print("\n[yellow]Cancelado pelo usuário.[/yellow]")
@@ -327,6 +343,10 @@ def metadata_bulk_cmd(
             help="Pular séries que já têm JSON de metadados no disco",
         ),
     ] = False,
+    workers: Annotated[
+        int,
+        typer.Option("--workers", help="Downloads concorrentes (padrão: 4)"),
+    ] = 4,
     verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Baixar metadados de múltiplas séries do SGS/BCB."""
@@ -347,15 +367,23 @@ def metadata_bulk_cmd(
         raise typer.Exit(code=1)
 
     dest_dir = storage.get_data_dir(output, dt.date.today()) / "metadata"
-    with make_batch_progress(console) as progress:
+    import threading
+
+    from quantilica.core.cli import make_download_progress
+
+    with make_download_progress(console) as progress:
         task = progress.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
+        active_tasks: dict[int, int] = {}
+        lock = threading.Lock()
+
+        def on_start(series_id: int) -> None:
+            with lock:
+                active_tasks[series_id] = progress.add_task(
+                    f"Metadados {series_id}", total=None
+                )
 
         def on_progress(
-            processed: int,
-            total: int,
-            ok: int,
-            failed: int,
-            skipped: int,
+            processed: int, total: int, ok: int, failed: int, skipped: int
         ) -> None:
             progress.update(
                 task,
@@ -367,6 +395,12 @@ def metadata_bulk_cmd(
                 ),
             )
 
+        def on_finish(series_id: int, outcome: str) -> None:
+            with lock:
+                task_id = active_tasks.pop(series_id, None)
+                if task_id is not None:
+                    pass
+
         scraper = ScraperClient()
         try:
             successful, failed_count = bulk.fetch_metadata_bulk(
@@ -375,7 +409,10 @@ def metadata_bulk_cmd(
                 dest_dir,
                 sleeptime=sleeptime,
                 skip_existing=skip_existing,
+                workers=workers,
+                on_start=on_start,
                 on_progress=on_progress,
+                on_finish=on_finish,
             )
         finally:
             scraper.close()
@@ -441,6 +478,10 @@ def pipeline_cmd(
             help="Pular séries que já têm JSON de metadados no disco",
         ),
     ] = False,
+    workers: Annotated[
+        int,
+        typer.Option("--workers", help="Downloads concorrentes (padrão: 4)"),
+    ] = 4,
     verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
     """Sincronizar o catálogo completo de metadados do SGS/BCB (4 passos)."""
@@ -518,15 +559,23 @@ def pipeline_cmd(
 
     # --- Passo 4 ---
     console.print(Rule("[bold]Passo 4/4: Metadados[/bold]"))
-    with make_batch_progress(console) as progress:
+    import threading
+
+    from quantilica.core.cli import make_download_progress
+
+    with make_download_progress(console) as progress:
         task = progress.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
+        active_tasks: dict[int, int] = {}
+        lock = threading.Lock()
+
+        def on_start(series_id: int) -> None:
+            with lock:
+                active_tasks[series_id] = progress.add_task(
+                    f"Metadados {series_id}", total=None
+                )
 
         def on_progress(
-            processed: int,
-            total: int,
-            ok: int,
-            failed: int,
-            skipped: int,
+            processed: int, total: int, ok: int, failed: int, skipped: int
         ) -> None:
             progress.update(
                 task,
@@ -538,6 +587,12 @@ def pipeline_cmd(
                 ),
             )
 
+        def on_finish(series_id: int, outcome: str) -> None:
+            with lock:
+                task_id = active_tasks.pop(series_id, None)
+                if task_id is not None:
+                    pass
+
         scraper = ScraperClient()
         try:
             successful, failed_count = bulk.fetch_metadata_bulk(
@@ -546,7 +601,10 @@ def pipeline_cmd(
                 data_dir / "metadata",
                 sleeptime=sleeptime,
                 skip_existing=skip_existing,
+                workers=workers,
+                on_start=on_start,
                 on_progress=on_progress,
+                on_finish=on_finish,
             )
         finally:
             scraper.close()
