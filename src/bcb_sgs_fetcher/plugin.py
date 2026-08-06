@@ -132,13 +132,23 @@ def fetch(
             task = overall.add_task(
                 "[cyan]0✓  0✗  0 skip[/cyan]", total=len(series_freqs)
             )
+            worker_task_ids = [
+                file_prog.add_task("[dim]Inativo[/dim]", total=1)
+                for _ in range(workers)
+            ]
+            available_tasks = worker_task_ids.copy()
             active_tasks: dict[int, int] = {}
             lock = threading.Lock()
 
             def on_start(series_id: int) -> None:
                 with lock:
-                    active_tasks[series_id] = file_prog.add_task(
-                        f"Série {series_id}", total=None
+                    task_id = available_tasks.pop(0)
+                    active_tasks[series_id] = task_id
+                    file_prog.update(
+                        task_id,
+                        description=f"Série {series_id}",
+                        completed=0,
+                        total=None,
                     )
 
             def on_progress(
@@ -158,7 +168,13 @@ def fetch(
                 with lock:
                     task_id = active_tasks.pop(series_id, None)
                     if task_id is not None:
-                        file_prog.remove_task(task_id)
+                        file_prog.update(
+                            task_id,
+                            description="[dim]Inativo[/dim]",
+                            completed=0,
+                            total=1,
+                        )
+                        available_tasks.append(task_id)
 
             def on_file_progress(series_id: int, downloaded: int, total: int) -> None:
                 with lock:
@@ -405,13 +421,22 @@ def metadata_bulk_cmd(
 
     with Live(Group(overall, file_prog), console=console, refresh_per_second=10):
         task = overall.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
+        worker_task_ids = [
+            file_prog.add_task("[dim]Inativo[/dim]", total=1) for _ in range(workers)
+        ]
+        available_tasks = worker_task_ids.copy()
         active_tasks: dict[int, int] = {}
         lock = threading.Lock()
 
         def on_start(series_id: int) -> None:
             with lock:
-                active_tasks[series_id] = file_prog.add_task(
-                    f"Metadados {series_id}", total=None
+                task_id = available_tasks.pop(0)
+                active_tasks[series_id] = task_id
+                file_prog.update(
+                    task_id,
+                    description=f"Metadados {series_id}",
+                    completed=0,
+                    total=None,
                 )
 
         def on_progress(
@@ -431,7 +456,10 @@ def metadata_bulk_cmd(
             with lock:
                 task_id = active_tasks.pop(series_id, None)
                 if task_id is not None:
-                    file_prog.remove_task(task_id)
+                    file_prog.update(
+                        task_id, description="[dim]Inativo[/dim]", completed=0, total=1
+                    )
+                    available_tasks.append(task_id)
 
         def on_file_progress(series_id: int, downloaded: int, total: int) -> None:
             with lock:
@@ -621,13 +649,22 @@ def pipeline_cmd(
 
     with Live(Group(overall, file_prog), console=console, refresh_per_second=10):
         task = overall.add_task("[cyan]0✓  0✗  0 skip[/cyan]", total=len(ids))
+        worker_task_ids = [
+            file_prog.add_task("[dim]Inativo[/dim]", total=1) for _ in range(workers)
+        ]
+        available_tasks = worker_task_ids.copy()
         active_tasks: dict[int, int] = {}
         lock = threading.Lock()
 
         def on_start(series_id: int) -> None:
             with lock:
-                active_tasks[series_id] = file_prog.add_task(
-                    f"Metadados {series_id}", total=None
+                task_id = available_tasks.pop(0)
+                active_tasks[series_id] = task_id
+                file_prog.update(
+                    task_id,
+                    description=f"Metadados {series_id}",
+                    completed=0,
+                    total=None,
                 )
 
         def on_progress(
@@ -647,7 +684,10 @@ def pipeline_cmd(
             with lock:
                 task_id = active_tasks.pop(series_id, None)
                 if task_id is not None:
-                    file_prog.remove_task(task_id)
+                    file_prog.update(
+                        task_id, description="[dim]Inativo[/dim]", completed=0, total=1
+                    )
+                    available_tasks.append(task_id)
 
         def on_file_progress(series_id: int, downloaded: int, total: int) -> None:
             with lock:
