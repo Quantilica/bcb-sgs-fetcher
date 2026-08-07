@@ -1,6 +1,6 @@
 [project]
 name = "bcb-sgs-fetcher"
-version = "0.6.2"
+version = "0.7.0"
 description = "Fetcher for BCB SGS (Sistema Gerenciador de Séries Temporais)"
 readme = "README.md"
 authors = [
@@ -33,8 +33,6 @@ dependencies = [
     "lxml>=5.0",
     "markdownify>=0.13",
     "quantilica-core>=0.4.0",
-    "quantilica-cli>=0.2.0",
-    "quantilica-catalog>=0.2.0",
 ]
 
 [project.urls]
