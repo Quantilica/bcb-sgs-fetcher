@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from quantilica.core.cli import (
+from quantilica.cli.ui import (
     get_console,
     make_batch_progress,
     setup_rich_logging,
@@ -121,7 +121,7 @@ def fetch(
     try:
         import threading
 
-        from quantilica.core.cli import make_batch_progress, make_download_progress
+        from quantilica.cli.ui import make_batch_progress, make_download_progress
         from rich.console import Group
         from rich.live import Live
 
@@ -412,7 +412,7 @@ def metadata_bulk_cmd(
     dest_dir = storage.get_data_dir(output, dt.date.today()) / "metadata"
     import threading
 
-    from quantilica.core.cli import make_batch_progress, make_download_progress
+    from quantilica.cli.ui import make_batch_progress, make_download_progress
     from rich.console import Group
     from rich.live import Live
 
@@ -600,7 +600,7 @@ def pipeline_cmd(
 
     # --- Passo 2 ---
     console.print(Rule("[bold]Passo 2/4: Séries desativadas[/bold]"))
-    from quantilica.core.cli import make_batch_progress
+    from quantilica.cli.ui import make_batch_progress
 
     with make_batch_progress(console) as progress:
         task = progress.add_task("[cyan]Séries desativadas[/cyan]", total=None)
@@ -640,7 +640,7 @@ def pipeline_cmd(
     console.print(Rule("[bold]Passo 4/4: Metadados[/bold]"))
     import threading
 
-    from quantilica.core.cli import make_batch_progress, make_download_progress
+    from quantilica.cli.ui import make_batch_progress, make_download_progress
     from rich.console import Group
     from rich.live import Live
 
