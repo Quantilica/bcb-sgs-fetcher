@@ -277,7 +277,14 @@ class _BoomClient:
     def __init__(self):
         self.calls: list[int] = []
 
-    def fetch_series_data(self, series_id, period, frequency_acronym, should_stop):
+    def fetch_series_data(
+        self,
+        series_id,
+        period,
+        frequency_acronym,
+        should_stop,
+        progress=None,
+    ):
         self.calls.append(series_id)
         if len(self.calls) == 1:
             raise KeyboardInterrupt
