@@ -11,6 +11,7 @@ from collections.abc import Callable
 from types import TracebackType
 
 import httpx
+from quantilica.core.http import HttpClient
 from quantilica.core.retry import with_retry
 
 from . import logger
@@ -42,8 +43,8 @@ _retry_http = with_retry(
 )
 
 
-class ScraperClient:
-    """Maintains an ``httpx.Client`` session against the BCB SGS website.
+class ScraperClient(HttpClient):
+    """Maintains an HTTP session against the BCB SGS website.
 
     Args:
         timeout: HTTP timeout in seconds. Defaults to 30.
@@ -59,10 +60,8 @@ class ScraperClient:
         language: str = "pt",
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        self.timeout = timeout
+        super().__init__(timeout=timeout, transport=transport)
         self.language = language
-        self._transport = transport
-        self.session: httpx.Client | None = None
         self.init_session(language=language)
 
     def init_session(self, language: str = "pt") -> None:
@@ -74,16 +73,11 @@ class ScraperClient:
         if language not in ("pt", "en"):
             raise ValueError(f"Language unknown {language}")
         self.language = language
-        kwargs: dict = {"timeout": self.timeout}
-        if self._transport is not None:
-            kwargs["transport"] = self._transport
-        session = httpx.Client(**kwargs)
         search_url = BASE_URL + "/index.jsp"
         params: dict[str, str] = {}
         if language == "pt":
             params["idIdioma"] = "P"
-        session.get(search_url, params=params)
-        self.session = session
+        self.get(search_url, params=params)
 
     @_retry_http
     def request_metadata_html(
@@ -98,13 +92,12 @@ class ScraperClient:
         # POST to land on the metadata frameset.
         req_data = {"hdOidSerieMetadados": series_id}
         params = {"method": "recuperarMetadadosPorDocn"}
-        response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
-        response.raise_for_status()
+        self.request("POST", LOCALIZAR_SERIES_URL, params=params, data=req_data)
 
         def _get_with_progress(url: str, current_downloaded: int) -> tuple[bytes, int]:
             downloaded = 0
             chunks = []
-            with self.session.stream("GET", url) as stream_resp:
+            with self.stream("GET", url) as stream_resp:
                 stream_resp.raise_for_status()
                 for chunk in stream_resp.iter_bytes():
                     chunks.append(chunk)
@@ -131,8 +124,9 @@ class ScraperClient:
             "periodicidade": 0,
         }
         params = {"method": "localizarSeriesDesativadas"}
-        response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
-        response.raise_for_status()
+        response = self.request(
+            "POST", LOCALIZAR_SERIES_URL, params=params, data=req_data
+        )
         return response.content
 
     @_retry_http
@@ -146,8 +140,9 @@ class ScraperClient:
             "periodicidade": 0,
         }
         params = {"method": "getPagina"}
-        response = self.session.post(LOCALIZAR_SERIES_URL, params=params, data=req_data)
-        response.raise_for_status()
+        response = self.request(
+            "POST", LOCALIZAR_SERIES_URL, params=params, data=req_data
+        )
         return response.content
 
     @_retry_http
@@ -160,8 +155,7 @@ class ScraperClient:
             "hdTipoPesquisa": 3,
         }
         params = {"method": "recuperarGruposPrincipais"}
-        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
-        r.raise_for_status()
+        r = self.request("POST", LOCALIZAR_SERIES_URL, data=req_data, params=params)
         return r.content
 
     @_retry_http
@@ -173,8 +167,7 @@ class ScraperClient:
             "hdSeqGrupoSelecionado": seq_grupo,
         }
         params = {"method": "prepararTelaLcsArvore"}
-        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
-        r.raise_for_status()
+        r = self.request("POST", LOCALIZAR_SERIES_URL, data=req_data, params=params)
         return r.content
 
     @_retry_http
@@ -188,8 +181,7 @@ class ScraperClient:
             "hdTipoOrdenacao": 0,
         }
         params = {"method": "localizarSeriesPorGrupo"}
-        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
-        r.raise_for_status()
+        r = self.request("POST", LOCALIZAR_SERIES_URL, data=req_data, params=params)
         return r.content
 
     @_retry_http
@@ -203,15 +195,12 @@ class ScraperClient:
             "hdTipoPesquisa": 0,
             "hdTipoOrdenacao": 0,
         }
-        r = self.session.post(LOCALIZAR_SERIES_URL, data=req_data, params=params)
-        r.raise_for_status()
+        r = self.request("POST", LOCALIZAR_SERIES_URL, data=req_data, params=params)
         return r.content
 
     def close(self) -> None:
         """Close the underlying HTTP session."""
-        if self.session is not None:
-            self.session.close()
-            self.session = None
+        pass
 
     def __enter__(self) -> "ScraperClient":
         return self

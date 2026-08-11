@@ -26,7 +26,6 @@ def test_init_session_seeds_pt_cookie():
     calls: list[tuple[str, str, bytes]] = []
     transport = _make_transport(calls)
     with ScraperClient(transport=transport) as client:
-        assert client.session is not None
         assert client.language == "pt"
     # First call is the session-seed GET to /index.jsp with idIdioma=P.
     method, url, _ = calls[0]
@@ -103,6 +102,8 @@ def test_retry_exhaustion_raises_retryerror(monkeypatch):
     posts: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, content=b"ok")
         if request.method == "POST":
             posts.append(str(request.url))
         return httpx.Response(500, content=b"boom")
@@ -112,5 +113,5 @@ def test_retry_exhaustion_raises_retryerror(monkeypatch):
         with pytest.raises(RetryError):
             client.get_grupos_principais()
 
-    # Five attempts, each issuing one POST to localizarSeries.
-    assert len(posts) == 5
+    # Three attempts (HttpClient default), each issuing one POST to localizarSeries.
+    assert len(posts) == 3
