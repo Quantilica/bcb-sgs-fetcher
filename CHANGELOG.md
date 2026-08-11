@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0] - 2026-08-10
+### Alterado
+- Migração completa da CLI para utilização da SDK unificada (`BcbSgsFetcherApp` estendendo `FetcherApp`).
+- Remoção do encapsulamento `ScraperClient` proprietário em favor do `HttpClient` do `quantilica-core`.
+### Removido
+- Removido `DEFAULT_OUTPUT_DIR` disperso em arquivo genérico `constants.py`.
+
 ## [0.7.0] - 2026-08-07
 ### Alterado
 - Refatoração arquitetural: Remoção de dependências (`quantilica-cli` e `quantilica-catalog`) e limpeza de imports. Os fetchers agora são pacotes de extração puros, dependendo estritamente do `quantilica-core`.
