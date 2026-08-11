@@ -46,10 +46,17 @@ def bcb_path_builder(output_dir: Path, entry: dict, last_modified) -> Path:
     return output_dir / entry.get("id", "unknown")
 
 
-fetcher_app = FetcherApp(
+class BcbSgsFetcherApp(FetcherApp):
+    def _build_commands(self) -> None:
+        # Override to avoid creating default sync/list commands
+        pass
+
+
+fetcher_app = BcbSgsFetcherApp(
     name="bcb-sgs",
     help="Dados do SGS/BCB (séries temporais).",
     groups_dict={},
+    aliases_dict={},
     list_datasets=bcb_list_datasets,
     path_builder=bcb_path_builder,
     default_output=_DEFAULT_OUTPUT,
