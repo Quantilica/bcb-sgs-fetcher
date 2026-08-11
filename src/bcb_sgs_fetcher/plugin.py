@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from quantilica.cli.sdk import FetcherApp
 from quantilica.cli.ui import (
     get_console,
     make_batch_progress,
@@ -35,7 +36,27 @@ from bcb_sgs_fetcher import (
 )
 from bcb_sgs_fetcher.constants import DEFAULT_OUTPUT_DIR
 
-app = typer.Typer(help="Dados do SGS/BCB (séries temporais).")
+_DEFAULT_OUTPUT = DEFAULT_OUTPUT_DIR
+
+
+def bcb_list_datasets(group: str) -> list[dict]:
+    return []
+
+
+def bcb_path_builder(output_dir: Path, entry: dict, last_modified) -> Path:
+    return output_dir / entry.get("id", "unknown")
+
+
+fetcher_app = FetcherApp(
+    name="bcb-sgs",
+    help="Dados do SGS/BCB (séries temporais).",
+    groups_dict={},
+    list_datasets=bcb_list_datasets,
+    path_builder=bcb_path_builder,
+    default_output=_DEFAULT_OUTPUT,
+)
+
+app = fetcher_app.app
 series_sub = typer.Typer(help="Operações por série (dados, metadados, busca).")
 catalogo_sub = typer.Typer(
     help="Catálogo de metadados do SGS/BCB (sync completo e passos)."
@@ -43,8 +64,6 @@ catalogo_sub = typer.Typer(
 app.add_typer(series_sub, name="series")
 app.add_typer(catalogo_sub, name="catalogo")
 console = get_console()
-
-_DEFAULT_OUTPUT = DEFAULT_OUTPUT_DIR
 
 
 @series_sub.command("sync")
