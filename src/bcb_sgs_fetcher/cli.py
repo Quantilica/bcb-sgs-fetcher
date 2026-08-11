@@ -17,7 +17,6 @@ from quantilica.core.logging import configure_cli_logging
 
 from bcb_sgs_fetcher import (
     ScraperClient,
-    SgsDataClient,
     __version__,
     bulk,
     extract_table_data,
@@ -26,9 +25,9 @@ from bcb_sgs_fetcher import (
     parse_metadata_full,
     storage,
 )
-from bcb_sgs_fetcher.constants import DEFAULT_OUTPUT_DIR
+from bcb_sgs_fetcher.data import SgsDataClient
 
-_DEFAULT_OUTPUT = DEFAULT_OUTPUT_DIR
+_DEFAULT_OUTPUT = Path("/data/bcb-sgs")
 
 
 def handle_fetch(args: argparse.Namespace) -> None:

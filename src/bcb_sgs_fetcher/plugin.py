@@ -34,9 +34,8 @@ from bcb_sgs_fetcher import (
     parse_metadata_full,
     storage,
 )
-from bcb_sgs_fetcher.constants import DEFAULT_OUTPUT_DIR
 
-_DEFAULT_OUTPUT = DEFAULT_OUTPUT_DIR
+_DEFAULT_OUTPUT = Path("/data/bcb-sgs")
 
 
 def bcb_list_datasets(group: str) -> list[dict]:
