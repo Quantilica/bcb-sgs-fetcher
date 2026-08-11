@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.1] - 2026-08-10
+### Corrigido
+- Atualizada dependência `quantilica-core` para `>=0.5.0` devido à exigência do parâmetro `data` no `HttpClient.request`.
+
 ## [0.8.0] - 2026-08-10
 ### Alterado
 - Migração completa da CLI para utilização da SDK unificada (`BcbSgsFetcherApp` estendendo `FetcherApp`).
