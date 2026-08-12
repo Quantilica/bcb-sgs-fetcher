@@ -38,6 +38,13 @@ def get_url(series_id: int, period: Period = "all") -> str:
 
     ``period="all"`` returns the full history. ``period="latest"``
     returns the last 20 observations.
+
+    Args:
+        series_id: BCB SGS series identifier.
+        period: "all" or "latest".
+
+    Returns:
+        str: The URL for fetching the series data.
     """
     if period == "all":
         latest = ""

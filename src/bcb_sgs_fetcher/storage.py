@@ -34,7 +34,15 @@ _METADATA_DIR = "metadata"
 
 
 def get_data_dir(data_dir: Path, date: dt.date) -> Path:
-    """Return the month-partitioned subdirectory for ``date``."""
+    """Return the month-partitioned subdirectory for ``date``.
+
+    Args:
+        data_dir: The base data directory.
+        date: The date to partition by.
+
+    Returns:
+        Path: The partitioned subdirectory path.
+    """
     return data_dir / f"bcb-sgs_{date:%Y-%m}"
 
 
@@ -57,6 +65,14 @@ def data_file_path(
     ``<output>/data/series_{id}@{YYYYMMDDTHHMMSS}.json``. Defaults to the
     current time; datetime precision means same-day re-fetches coexist
     instead of overwriting.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+        timestamp: The timestamp for the snapshot.
+
+    Returns:
+        Path: The stamped path for the snapshot.
     """
     ts = timestamp if timestamp is not None else dt.datetime.now()
     name = stamp_filename(_series_slug(series_id), "json", ts, precision="datetime")
@@ -68,6 +84,13 @@ def latest_series_file(output: Path, series_id: int) -> Path | None:
 
     Delegates the latest-stamp selection to ``StampedDataRepository`` and
     recognizes both date-only and datetime stamps.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        Path | None: The newest snapshot path, or None.
     """
     repo = StampedDataRepository(output)
     return repo.get_latest_stamped_file(_DATA_DATASET, _series_slug(series_id), "json")
@@ -79,6 +102,13 @@ def latest_series_datetime(output: Path, series_id: int) -> dt.datetime | None:
     Parses the stamp embedded in the filename. Recognizes both the datetime
     stamp (``@YYYYMMDDTHHMMSS``) and the legacy date-only stamp
     (``@YYYYMMDD``).
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        dt.datetime | None: The timestamp of the newest snapshot, or None.
     """
     path = latest_series_file(output, series_id)
     if path is None:
@@ -96,7 +126,16 @@ def latest_series_datetime(output: Path, series_id: int) -> dt.datetime | None:
 
 
 def snapshot_exists_for_date(output: Path, series_id: int, date: dt.date) -> bool:
-    """Return True if any snapshot for the series exists for ``date``."""
+    """Return True if any snapshot for the series exists for ``date``.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+        date: The date to check.
+
+    Returns:
+        bool: True if a snapshot exists, False otherwise.
+    """
     data_dir = output / _DATA_DATASET
     if not data_dir.exists():
         return False
@@ -110,14 +149,31 @@ def write_series_data(
     rows: list[Any],
     timestamp: dt.date | dt.datetime | None = None,
 ) -> Path:
-    """Write a list of observation dicts as a stamped snapshot."""
+    """Write a list of observation dicts as a stamped snapshot.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+        rows: The rows to write.
+        timestamp: The timestamp for the snapshot.
+
+    Returns:
+        Path: The path to the written snapshot.
+    """
     path = data_file_path(output, series_id, timestamp)
     save_json(rows, path)
     return path
 
 
 def read_series_data(filepath: Path) -> list[dict]:
-    """Read an observations JSON file written by :func:`write_series_data`."""
+    """Read an observations JSON file written by :func:`write_series_data`.
+
+    Args:
+        filepath: The path to the JSON file.
+
+    Returns:
+        list[dict]: The parsed observation rows.
+    """
     data = json.loads(Path(filepath).read_text(encoding="utf-8"))
     if not isinstance(data, list):
         raise ValueError(f"Unexpected observations format in {filepath}")
@@ -130,14 +186,24 @@ def read_series_data(filepath: Path) -> list[dict]:
 
 
 def save_json(data: Any, filepath: Path) -> None:
-    """Write ``data`` as pretty-printed UTF-8 JSON atomically."""
+    """Write ``data`` as pretty-printed UTF-8 JSON atomically.
+
+    Args:
+        data: The JSON serializable data.
+        filepath: The destination path.
+    """
     filepath.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, indent=1, default=str, ensure_ascii=False)
     write_text_atomic(filepath, text)
 
 
 def save_bytes(data: bytes, filepath: Path) -> None:
-    """Write raw bytes atomically."""
+    """Write raw bytes atomically.
+
+    Args:
+        data: The bytes to write.
+        filepath: The destination path.
+    """
     filepath.parent.mkdir(parents=True, exist_ok=True)
     write_bytes_atomic(filepath, data)
 
@@ -148,7 +214,15 @@ def save_bytes(data: bytes, filepath: Path) -> None:
 
 
 def metadata_dir(output: Path, date: dt.date | None = None) -> Path:
-    """Return the month-partitioned metadata directory for ``date``."""
+    """Return the month-partitioned metadata directory for ``date``.
+
+    Args:
+        output: The output directory.
+        date: The optional date to partition by.
+
+    Returns:
+        Path: The metadata directory path.
+    """
     return get_data_dir(output, date or dt.date.today()) / _METADATA_DIR
 
 
@@ -165,12 +239,28 @@ def _find_metadata_file(output: Path, name: str) -> Path | None:
 
 
 def find_combined_metadata(output: Path, series_id: int) -> Path | None:
-    """Locate the combined ``{id:06d}.json`` (``{"basic", "full"}``)."""
+    """Locate the combined ``{id:06d}.json`` (``{"basic", "full"}``).
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        Path | None: The path to the combined metadata, or None.
+    """
     return _find_metadata_file(output, f"{int(series_id):06d}.json")
 
 
 def read_combined_metadata(output: Path, series_id: int) -> dict | None:
-    """Read the combined metadata file, or ``None`` when absent."""
+    """Read the combined metadata file, or ``None`` when absent.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        dict | None: The combined metadata, or None.
+    """
     path = find_combined_metadata(output, series_id)
     if path is None:
         return None
@@ -178,7 +268,15 @@ def read_combined_metadata(output: Path, series_id: int) -> dict | None:
 
 
 def read_basic_metadata(output: Path, series_id: int) -> dict | None:
-    """Read a split ``{id:06d}_basic.json`` file, or ``None``."""
+    """Read a split ``{id:06d}_basic.json`` file, or ``None``.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        dict | None: The basic metadata, or None.
+    """
     path = _find_metadata_file(output, f"{int(series_id):06d}_basic.json")
     if path is None:
         return None
@@ -186,7 +284,15 @@ def read_basic_metadata(output: Path, series_id: int) -> dict | None:
 
 
 def read_full_metadata(output: Path, series_id: int) -> dict | None:
-    """Read a split ``{id:06d}_full.json`` file, or ``None``."""
+    """Read a split ``{id:06d}_full.json`` file, or ``None``.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        dict | None: The full metadata, or None.
+    """
     path = _find_metadata_file(output, f"{int(series_id):06d}_full.json")
     if path is None:
         return None
@@ -194,7 +300,15 @@ def read_full_metadata(output: Path, series_id: int) -> dict | None:
 
 
 def has_basic_metadata(output: Path, series_id: int) -> bool:
-    """Return True if a split basic-metadata file exists for the series."""
+    """Return True if a split basic-metadata file exists for the series.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+
+    Returns:
+        bool: True if it exists, False otherwise.
+    """
     return _find_metadata_file(output, f"{int(series_id):06d}_basic.json") is not None
 
 
@@ -213,6 +327,15 @@ def write_metadata(
     A combined ``{id:06d}.json`` (``{"basic": ..., "full": ...}``) and,
     when supplied, the raw ``{id:06d}_basic.html`` / ``_full.html`` pair —
     under ``<output>/bcb-sgs_{YYYY-MM}/metadata/``.
+
+    Args:
+        output: The output directory.
+        series_id: The series ID.
+        basic: Basic metadata dictionary.
+        full: Full metadata dictionary.
+        html_basic: Raw HTML bytes for basic metadata.
+        html_full: Raw HTML bytes for full metadata.
+        date: The date for month-partitioning.
     """
     md = metadata_dir(output, date)
     save_json({BASIC: basic, FULL: full}, md / f"{int(series_id):06d}.json")

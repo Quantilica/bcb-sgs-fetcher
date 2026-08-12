@@ -41,7 +41,16 @@ def extract_theme_nodes(
     level: int = 1,
     chain: list[str] | None = None,
 ) -> Generator[ThemeNode, None, None]:
-    """Recursively extract theme nodes from a list of ``<li>`` tags."""
+    """Recursively extract theme nodes from a list of ``<li>`` tags.
+
+    Args:
+        li_list: A list of BeautifulSoup ``<li>`` tags to extract from.
+        level: Current hierarchy level of the themes.
+        chain: The list of theme names from the root to the current node.
+
+    Yields:
+        ThemeNode: The extracted theme node.
+    """
     if chain is None:
         chain = []
     for name, href, li in _walk_level_items(li_list):
@@ -74,7 +83,14 @@ def _parse_arvore_link(href: str) -> dict[str, str]:
 
 
 def extract_arvore_grupos(table: Tag) -> list[ArvoreGrupoLink]:
-    """Extract metadata for top-level groups from the árvore-grupos table."""
+    """Extract metadata for top-level groups from the árvore-grupos table.
+
+    Args:
+        table: The BeautifulSoup ``<table>`` tag containing top-level groups.
+
+    Returns:
+        list[ArvoreGrupoLink]: Extracted group metadata links.
+    """
     table = table.__copy__()
     links: list[ArvoreGrupoLink] = []
     for td in table.select("td"):
@@ -100,7 +116,14 @@ def extract_arvore_grupos(table: Tag) -> list[ArvoreGrupoLink]:
 
 
 def extract_grupo_links(soup: BeautifulSoup) -> list[GrupoLink]:
-    """Extract every ``selecionarGrupoLink`` link from a page."""
+    """Extract every ``selecionarGrupoLink`` link from a page.
+
+    Args:
+        soup: The parsed HTML content of the page.
+
+    Returns:
+        list[GrupoLink]: A list of extracted group links.
+    """
     out: list[GrupoLink] = []
     match_pattern = re.compile(r"javascript:selecionarGrupoLink\((\d+), '(.+)'\);")
     for a in soup.select("a"):

@@ -87,6 +87,13 @@ class ScraperClient(HttpClient):
 
         Returns a dict keyed by ``"basic"`` and ``"full"`` with raw HTML
         bytes for each iframe.
+
+        Args:
+            series_id: The series ID.
+            progress: Optional callback for download progress.
+
+        Returns:
+            dict[str, bytes]: A dictionary with 'basic' and 'full' metadata HTML.
         """
         logger.info("Requesting metadata html for series %s", series_id)
         # POST to land on the metadata frameset.
@@ -116,7 +123,11 @@ class ScraperClient(HttpClient):
 
     @_retry_http
     def get_series_desativadas(self) -> bytes:
-        """Get the HTML of the deactivated-series listing."""
+        """Get the HTML of the deactivated-series listing.
+
+        Returns:
+            bytes: The HTML content.
+        """
         logger.info("Getting series desativadas")
         req_data = {
             "hdTipoOrdenacao": 0,
@@ -131,7 +142,14 @@ class ScraperClient(HttpClient):
 
     @_retry_http
     def change_page(self, page: int) -> bytes:
-        """Navigate the paginated series list to ``page``."""
+        """Navigate the paginated series list to ``page``.
+
+        Args:
+            page: The page number to navigate to.
+
+        Returns:
+            bytes: The HTML content of the new page.
+        """
         logger.info("Changing page to %s", page)
         req_data = {
             "hdNumPagina": page,
@@ -147,7 +165,11 @@ class ScraperClient(HttpClient):
 
     @_retry_http
     def get_grupos_principais(self) -> bytes:
-        """Get the HTML of the root group list."""
+        """Get the HTML of the root group list.
+
+        Returns:
+            bytes: The HTML content of the root group list.
+        """
         logger.info("Getting grupos principais")
         req_data = {
             "periodicidade": 0,
@@ -160,7 +182,15 @@ class ScraperClient(HttpClient):
 
     @_retry_http
     def get_arvore_grupo(self, id_grupo: int, seq_grupo: int) -> bytes:
-        """Get the tree of series of a group."""
+        """Get the tree of series of a group.
+
+        Args:
+            id_grupo: The group ID.
+            seq_grupo: The group sequence.
+
+        Returns:
+            bytes: The HTML content of the group tree.
+        """
         logger.info("Getting arvore grupo %s %s", id_grupo, seq_grupo)
         req_data = {
             "hdOidGrupoSelecionado": id_grupo,
@@ -172,7 +202,14 @@ class ScraperClient(HttpClient):
 
     @_retry_http
     def get_grupo_series(self, id_grupo: int) -> bytes:
-        """Get the series of a group."""
+        """Get the series of a group.
+
+        Args:
+            id_grupo: The group ID.
+
+        Returns:
+            bytes: The HTML content of the group series.
+        """
         logger.info("Getting grupo series %s", id_grupo)
         req_data = {
             "hdOidGrupoSelecionado": id_grupo,
@@ -186,7 +223,14 @@ class ScraperClient(HttpClient):
 
     @_retry_http
     def search_series_by_text(self, text: str) -> bytes:
-        """Search series by free text."""
+        """Search series by free text.
+
+        Args:
+            text: The text to search for.
+
+        Returns:
+            bytes: The HTML content of the search results.
+        """
         logger.info("Getting series by text %s", text)
         params = {"method": "localizarSeriesPorTexto"}
         req_data = {

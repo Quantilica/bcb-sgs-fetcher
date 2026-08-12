@@ -43,7 +43,14 @@ from .cleaning import (
 
 # BASIC METADATA PARSER =======================================================
 def extract_themes(td: Tag) -> list[str]:
-    """Extract themes from HTML content."""
+    """Extract themes from HTML content.
+
+    Args:
+        td: The BeautifulSoup ``<td>`` tag containing the themes.
+
+    Returns:
+        list[str]: Extracted themes.
+    """
     value = td.select_one("span.textoPequeno").decode_contents()
     themes = value.split("<br/>")
     themes = [theme.strip().strip(" -") for theme in themes if theme.strip()]
@@ -92,7 +99,17 @@ def _coerce_basic_dict(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def parse_metadata_basic(html: str | bytes) -> SeriesMetadataBasic:
-    """Parse the "Dados básicos da série" iframe HTML."""
+    """Parse the "Dados básicos da série" iframe HTML.
+
+    Args:
+        html: The HTML string or bytes of the iframe.
+
+    Returns:
+        SeriesMetadataBasic: The parsed basic metadata.
+
+    Raises:
+        ValueError: If the table or rows are not found in the HTML.
+    """
     soup = BeautifulSoup(html, "lxml")
     table = soup.find("table")
     if table is None:
@@ -240,7 +257,17 @@ def _get_dissemination_formats(table: Tag) -> list[DisseminationField]:
 
 
 def parse_metadata_full(html: str | bytes) -> SeriesMetadataFull:
-    """Parse the "Metadados" iframe HTML."""
+    """Parse the "Metadados" iframe HTML.
+
+    Args:
+        html: The HTML string or bytes of the iframe.
+
+    Returns:
+        SeriesMetadataFull: The parsed full metadata.
+
+    Raises:
+        ValueError: If the expected metadata tables are not found.
+    """
     soup = BeautifulSoup(html, "lxml")
     tables = soup.select("center > table")
     if not tables or len(tables) < 5:

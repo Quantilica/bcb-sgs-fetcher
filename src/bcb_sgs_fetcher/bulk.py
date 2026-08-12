@@ -42,6 +42,13 @@ def fetch_arvore_grupos(
     - ``{id:04d}-{nome}.html`` — árvore of each top-level group.
     - ``{id:04d}-{nome}/{grupo_id:04d}-{nome}_{page:03d}.html`` —
       paginated series listings per sub-group.
+
+    Args:
+        scraper: The ScraperClient instance.
+        dest_dir: Destination directory.
+        sleeptime: Sleep time between requests.
+        on_grupo: Callback for when a top-level group is processed.
+        on_subgrupo_page: Callback for when a sub-group page is processed.
     """
     html = scraper.get_grupos_principais()
     storage.save_bytes(html, dest_dir / "GruposPrincipais.html")
@@ -179,6 +186,12 @@ def fetch_series_desativadas(
     """Download all deactivated-series pages (paginated).
 
     Saves ``dest_dir/series-desativadas_{page:03d}.html`` per page.
+
+    Args:
+        scraper: The ScraperClient instance.
+        dest_dir: Destination directory.
+        sleeptime: Sleep time between requests.
+        on_page: Callback for when a page is processed.
     """
     page = 1
     dest_file = dest_dir / f"series-desativadas_{page:03d}.html"
@@ -240,8 +253,21 @@ def fetch_metadata_bulk(
     re-fetches them.  On session-level errors the session is renewed up
     to *max_session_retries* times before giving up on that series.
 
+    Args:
+        series_ids: List of series IDs to fetch.
+        scraper: The ScraperClient instance.
+        dest_dir: Destination directory.
+        sleeptime: Sleep time between requests.
+        max_session_retries: Maximum number of session retries.
+        skip_existing: Whether to skip existing metadata files.
+        workers: Number of concurrent workers.
+        on_start: Callback for when a series starts processing.
+        on_progress: Callback for overall progress updates.
+        on_finish: Callback for when a series finishes processing.
+        on_file_progress: Callback for file download progress.
+
     Returns:
-        ``(successful, failed)`` counts.
+        tuple[int, int]: ``(successful, failed)`` counts.
     """
 
     total = len(series_ids)
@@ -369,6 +395,12 @@ def extract_series_freq_map_from_data_dir(
     (``"D"``/``"S"``/``"M"``/``"T"``/``"Qd"``/``"A"``) comes straight from
     each row, so daily series can later be fetched with the retroactive
     year-by-year strategy without any extra HTTP calls.
+
+    Args:
+        data_dir: The data directory containing HTML pages.
+
+    Returns:
+        dict[int, str | None]: A mapping of series_id to frequency acronym.
     """
     freqs: dict[int, str | None] = {}
 
@@ -413,6 +445,12 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
     This is the equivalent of ``sgs-process index`` in bcb-sgs-app:
     it bridges the gap between ``arvore-grupos`` / ``series-desativadas``
     downloads and ``metadata-bulk``.
+
+    Args:
+        data_dir: The data directory containing HTML pages.
+
+    Returns:
+        list[int]: A sorted list of unique series IDs.
     """
     return sorted(extract_series_freq_map_from_data_dir(data_dir))
 
@@ -430,6 +468,15 @@ def build_series_freqs(
     otherwise **all** series read from the listing HTML under *catalog_dir*
     (the default scope). *frequency*, when given, overrides the acronym for
     every series; otherwise daily series are detected per row.
+
+    Args:
+        series_id: Optional specific series ID.
+        ids_file: Optional file containing series IDs.
+        catalog_dir: The catalog directory containing HTML listings.
+        frequency: Optional frequency override.
+
+    Returns:
+        dict[int, str | None]: A mapping of series_id to frequency acronym.
     """
     if series_id is not None:
         return {series_id: frequency}
@@ -478,8 +525,22 @@ def fetch_data_bulk(
     checkpoint, partial data is not persisted, and the exception is
     re-raised so the caller can report cancellation.
 
+    Args:
+        series_freqs: A mapping of series_id to frequency acronym.
+        client: The SgsDataClient instance.
+        output: Destination output directory.
+        period: "all" or "latest".
+        skip_existing: Whether to skip existing snapshot files.
+        workers: Number of concurrent workers.
+        sleeptime: Sleep time between requests.
+        date: The target snapshot date.
+        on_start: Callback for when a series starts processing.
+        on_progress: Callback for overall progress updates.
+        on_finish: Callback for when a series finishes processing.
+        on_file_progress: Callback for file download progress.
+
     Returns:
-        ``(successful, failed)`` counts.
+        tuple[int, int]: ``(successful, failed)`` counts.
     """
     snapshot_date = date or dt.date.today()
     total = len(series_freqs)

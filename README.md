@@ -4,6 +4,8 @@
 
 Biblioteca Python para download de dados e metadados do **SGS** (Sistema Gerenciador de Séries Temporais) do Banco Central do Brasil. Expõe dois clientes independentes: um para a API JSON pública e outro para raspagem HTML do portal SGS.
 
+**For full documentation, please visit [https://docs.quantilica.com](https://docs.quantilica.com).**
+
 **Fonte dos dados:** [BCB SGS — Sistema Gerenciador de Séries Temporais](https://www.bcb.gov.br/estatisticas/tabelaestatistica)
 
 ## Instalação

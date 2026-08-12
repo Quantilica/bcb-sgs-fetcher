@@ -64,7 +64,14 @@ def _parse_pt_br_month(token: str) -> int:
 
 
 def parse_date_ultimo_valor(data: dict[str, str]) -> dt.date | None:
-    """Parse the END field according to the row's FREQUENCY_ACRONYM."""
+    """Parse the END field according to the row's FREQUENCY_ACRONYM.
+
+    Args:
+        data: The dictionary containing the row's data.
+
+    Returns:
+        dt.date | None: The parsed date, or None if the date is missing.
+    """
     old_date = data[END]
     if old_date == "-":
         return None
@@ -87,7 +94,14 @@ def parse_date_ultimo_valor(data: dict[str, str]) -> dt.date | None:
 
 
 def extract_table_data(table: Tag) -> list[GrupoSeriesRow]:
-    """Extract series rows from a "Localizar séries" results table."""
+    """Extract series rows from a "Localizar séries" results table.
+
+    Args:
+        table: The BeautifulSoup ``<table>`` tag containing the results.
+
+    Returns:
+        list[GrupoSeriesRow]: Extracted rows.
+    """
     rows_out: list[GrupoSeriesRow] = []
     columns = table.select("thead th")
     columns_names = [re.sub(r"\s+", " ", c.text.strip()) for c in columns]
@@ -131,7 +145,14 @@ def extract_table_data(table: Tag) -> list[GrupoSeriesRow]:
 
 
 def get_n_pages(soup: BeautifulSoup) -> int:
-    """Return the highest page index referenced by ``getPagina(N)`` links."""
+    """Return the highest page index referenced by ``getPagina(N)`` links.
+
+    Args:
+        soup: The parsed HTML content of the page.
+
+    Returns:
+        int: The number of pages.
+    """
     n_pages = 1
     for a in soup.find_all("a"):
         href = a.get("href")

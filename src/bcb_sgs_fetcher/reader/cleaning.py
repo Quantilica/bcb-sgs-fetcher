@@ -28,7 +28,14 @@ from ..constants import (
 
 
 def clean_cell_text(text: str) -> str:
-    """Clean text in a cell of an HTML table."""
+    """Clean text in a cell of an HTML table.
+
+    Args:
+        text: The raw text from the table cell.
+
+    Returns:
+        str: The cleaned text.
+    """
     text = (
         text.replace("\n", " ")
         .replace("\t", " ")
@@ -40,7 +47,14 @@ def clean_cell_text(text: str) -> str:
 
 
 def translate_keys(data: dict[str, Any]) -> dict[str, Any]:
-    """Translate Portuguese labels of metadata to internal keys."""
+    """Translate Portuguese labels of metadata to internal keys.
+
+    Args:
+        data: A dictionary with Portuguese metadata labels.
+
+    Returns:
+        dict[str, Any]: A dictionary with internal keys.
+    """
     new_keys = {
         # METADATA SEARCH
         "Cód.": SERIES_ID,
@@ -81,7 +95,14 @@ def translate_keys(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def remove_invalid_chars(text: str) -> str:
-    """Remove invalid characters from text."""
+    """Remove invalid characters from text.
+
+    Args:
+        text: The original text containing invalid characters.
+
+    Returns:
+        str: Text with invalid characters removed.
+    """
     invalid_chars = ("\xa0",)
     for char in invalid_chars:
         text = text.replace(char, "")
@@ -92,14 +113,28 @@ def remove_invalid_chars(text: str) -> str:
 
 
 def remove_empty_tags(text: str) -> str:
-    """Remove empty tags from text."""
+    """Remove empty tags from text.
+
+    Args:
+        text: The HTML text.
+
+    Returns:
+        str: Text without empty tags.
+    """
     text = re.sub(r"<p>[\s&nbsp;]*</p>", "", text)
     text = re.sub(r"<o:p>[\s&nbsp;]*</o:p>", "", text)
     return text
 
 
 def clean_html_garbage(text: str) -> str:
-    """Remove HTML comments and XML namespace markers from text."""
+    """Remove HTML comments and XML namespace markers from text.
+
+    Args:
+        text: The raw HTML string.
+
+    Returns:
+        str: Cleaned HTML string.
+    """
     pattern = re.compile(r"<!--.*?-->", re.DOTALL)
     text = pattern.sub("", text)
     text = re.sub(r"<\?xml:namespace.*?/>", "", text, flags=re.IGNORECASE)
