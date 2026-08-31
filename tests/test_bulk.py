@@ -6,7 +6,7 @@ import json
 import re
 import time
 
-import httpx
+import httpx2
 import pytest
 
 from bcb_sgs_fetcher import (
@@ -67,12 +67,12 @@ def _handler_by_id(payload_for):
     """MockTransport handler dispatching on the series id in the URL."""
     calls: list[int] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         url = str(request.url)
         match = re.search(r"bcdata\.sgs\.(\d+)/dados", url)
         sid = int(match.group(1))
         calls.append(sid)
-        return httpx.Response(
+        return httpx2.Response(
             200,
             content=json.dumps(payload_for(sid, url)).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -148,7 +148,7 @@ def test_fetch_data_bulk_writes_stamped_files(tmp_path):
         return [{"data": "01/01/2024", "valor": "10.5"}]
 
     handler, _calls = _handler_by_id(payload_for)
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -173,7 +173,7 @@ def test_fetch_data_bulk_skip_existing(tmp_path):
         return [{"data": "01/01/2024", "valor": "1"}]
 
     handler, calls = _handler_by_id(payload_for)
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     today = dt.date.today()
 
     # Pre-create today's snapshot for series 1.
@@ -206,7 +206,7 @@ def test_fetch_data_bulk_empty_counts_as_skipped(tmp_path):
         )
 
     handler, _calls = _handler_by_id(lambda sid, url: [])
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -235,7 +235,7 @@ def test_fetch_data_bulk_daily_uses_backfill(tmp_path):
         return {"error": "no data"}  # not a list -> stops the loop
 
     handler, calls = _handler_by_id(payload_for)
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
 
     with SgsDataClient(transport=transport) as client:
         ok, failed = fetch_data_bulk(
@@ -260,7 +260,7 @@ def test_fetch_data_bulk_concurrent(tmp_path):
         return [{"data": "01/01/2024", "valor": str(sid)}]
 
     handler, _calls = _handler_by_id(payload_for)
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     ids = {sid: "M" for sid in (1, 2, 3, 4, 5)}
 
     with SgsDataClient(transport=transport) as client:

@@ -1,6 +1,6 @@
 """Tests for the BCB SGS HTML scraper."""
 
-import httpx
+import httpx2
 
 from bcb_sgs_fetcher import (
     BASE_URL,
@@ -15,11 +15,11 @@ from bcb_sgs_fetcher.constants import BASIC, FULL
 def _make_transport(calls: list[tuple[str, str, bytes]]):
     """Build a MockTransport that captures (method, url, body) per call."""
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append((request.method, str(request.url), bytes(request.content)))
-        return httpx.Response(200, content=b"<html><body>ok</body></html>")
+        return httpx2.Response(200, content=b"<html><body>ok</body></html>")
 
-    return httpx.MockTransport(handler)
+    return httpx2.MockTransport(handler)
 
 
 def test_init_session_seeds_pt_cookie():
@@ -37,15 +37,15 @@ def test_init_session_seeds_pt_cookie():
 def test_request_metadata_html_hits_three_endpoints():
     calls: list[tuple[str, str, bytes]] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         url = str(request.url)
         calls.append((request.method, url, bytes(request.content)))
         body = b"<html>basic</html>"
         if "cmiMetadados" in url:
             body = b"<html>full</html>"
-        return httpx.Response(200, content=body)
+        return httpx2.Response(200, content=body)
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     with ScraperClient(transport=transport) as client:
         result = client.request_metadata_html(series_id=42)
 
@@ -101,14 +101,14 @@ def test_retry_exhaustion_raises_retryerror(monkeypatch):
 
     posts: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.method == "GET":
-            return httpx.Response(200, content=b"ok")
+            return httpx2.Response(200, content=b"ok")
         if request.method == "POST":
             posts.append(str(request.url))
-        return httpx.Response(500, content=b"boom")
+        return httpx2.Response(500, content=b"boom")
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     with ScraperClient(transport=transport) as client:
         with pytest.raises(RetryError):
             client.get_grupos_principais()

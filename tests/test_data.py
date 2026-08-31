@@ -4,7 +4,7 @@ import datetime as dt
 import json
 from decimal import Decimal
 
-import httpx
+import httpx2
 import pytest
 from quantilica.core.http import HttpClient
 
@@ -35,10 +35,10 @@ def test_get_url_invalid_period():
 
 
 def _handler_json(payload):
-    """Build an httpx.MockTransport handler returning ``payload`` as JSON."""
+    """Build an httpx2.MockTransport handler returning ``payload`` as JSON."""
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             content=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -53,7 +53,7 @@ def test_fetch_monthly_series_returns_points():
         {"data": "01/02/2024", "valor": "11.0"},
         {"data": "01/03/2024", "valor": ""},  # null value
     ]
-    transport = httpx.MockTransport(_handler_json(payload))
+    transport = httpx2.MockTransport(_handler_json(payload))
     client = HttpClient(transport=transport)
     points = fetch_series_data(
         series_id=4189, client=client, period="all", frequency_acronym="M"
@@ -86,7 +86,7 @@ def test_fetch_period_with_data_fim():
             "valor": "1.2345",
         },
     ]
-    transport = httpx.MockTransport(_handler_json(payload))
+    transport = httpx2.MockTransport(_handler_json(payload))
     client = HttpClient(transport=transport)
     points = fetch_series_data(series_id=99, client=client, period="latest")
 
@@ -103,14 +103,14 @@ def test_fetch_period_with_data_fim():
 def test_unexpected_payload_logs_and_returns_empty():
     # ``get_json`` returns an error JSON object — fetch_series_data must
     # swallow the ValueError raised internally and return an empty list.
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             content=json.dumps({"error": "Series not found"}).encode(),
             headers={"Content-Type": "application/json"},
         )
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     client = HttpClient(transport=transport)
     assert fetch_series_data(series_id=1, client=client, period="all") == []
 
@@ -124,7 +124,7 @@ def test_daily_series_walks_years_backwards():
     """
     calls: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         url = str(request.url)
         calls.append(url)
         if "/ultimos/20" in url:
@@ -138,18 +138,18 @@ def test_daily_series_walks_years_backwards():
             # Anything earlier than 2023 → API returns malformed payload
             # (a dict instead of a list), which `_get_json` rejects with
             # `ValueError` and the loop terminates.
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 content=json.dumps({"error": "no data"}).encode(),
                 headers={"Content-Type": "application/json"},
             )
-        return httpx.Response(
+        return httpx2.Response(
             200,
             content=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
         )
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     with SgsDataClient(transport=transport) as client:
         points = client.fetch_series_data(
             series_id=1, period="all", frequency_acronym="D"
@@ -167,7 +167,7 @@ def test_daily_series_walks_years_backwards():
 def test_daily_series_stops_on_404():
     """A 404 (before series start) ends the walk; data so far is kept."""
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         url = str(request.url)
         if "/ultimos/20" in url:
             payload = [
@@ -178,14 +178,14 @@ def test_daily_series_stops_on_404():
             payload = [{"data": "15/06/2023", "valor": "5.0"}]
         else:
             # The real BCB API returns 404 for years before the start.
-            return httpx.Response(404, content=b"not found")
-        return httpx.Response(
+            return httpx2.Response(404, content=b"not found")
+        return httpx2.Response(
             200,
             content=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
         )
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     with SgsDataClient(transport=transport) as client:
         points = client.fetch_series_data(
             series_id=1, period="all", frequency_acronym="D"
@@ -202,10 +202,10 @@ def test_daily_series_stops_on_404():
 def test_non_daily_404_returns_empty():
     """A 404 on the plain ``/dados`` endpoint yields no points (not error)."""
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(404, content=b"not found")
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(404, content=b"not found")
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     with SgsDataClient(transport=transport) as client:
         assert client.fetch_series_data(series_id=42, period="all") == []
 
@@ -214,19 +214,19 @@ def test_daily_series_stops_when_should_stop():
     """``should_stop`` halts the year-by-year walk after the anchor call."""
     calls: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(str(request.url))
         payload = [
             {"data": "05/03/2024", "valor": "5.5"},
             {"data": "04/03/2024", "valor": "5.4"},
         ]
-        return httpx.Response(
+        return httpx2.Response(
             200,
             content=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
         )
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     with SgsDataClient(transport=transport) as client:
         points = client.fetch_series_data(
             series_id=1,
@@ -244,7 +244,7 @@ def test_invalid_date_in_record_is_skipped():
         {"data": "not-a-date", "valor": "1"},
         {"data": "01/01/2024", "valor": "2"},
     ]
-    transport = httpx.MockTransport(_handler_json(payload))
+    transport = httpx2.MockTransport(_handler_json(payload))
     with SgsDataClient(transport=transport) as client:
         points = client.fetch_series_data(series_id=1, period="latest")
     assert points == [

@@ -17,7 +17,7 @@ from decimal import Decimal, InvalidOperation
 from types import TracebackType
 from typing import Literal
 
-import httpx
+import httpx2
 from quantilica.core.exceptions import FetchError
 from quantilica.core.http import HttpClient
 
@@ -205,7 +205,7 @@ class SgsDataClient:
     def __init__(
         self,
         timeout: float = 60,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
     ) -> None:
         self.client = HttpClient(timeout=timeout, transport=transport)
 

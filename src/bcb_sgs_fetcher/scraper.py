@@ -1,16 +1,16 @@
 """Scraper for the BCB SGS website (www3.bcb.gov.br/sgspub).
 
-:class:`ScraperClient` is a thin context manager around ``httpx.Client``.
+:class:`ScraperClient` is a thin context manager around ``httpx2.Client``.
 It keeps a JSESSION cookie alive for the duration of the context and
 exposes methods that POST/GET against the SGS web pages. Each public
 method is wrapped with ``quantilica-core`` retries (exponential
-backoff, ``httpx`` transport errors only).
+backoff, ``httpx2`` transport errors only).
 """
 
 from collections.abc import Callable
 from types import TracebackType
 
-import httpx
+import httpx2
 from quantilica.core.http import HttpClient
 from quantilica.core.retry import with_retry
 
@@ -30,9 +30,9 @@ METADADOS_BASICOS_URL = f"{CONSULTAR_METADADOS_URL}/cmiDadosBasicos.jsp"
 METADADOS_FULL_URL = f"{CONSULTAR_METADADOS_URL}/cmiMetadados.jsp"
 
 _RETRY_EXCEPTIONS = (
-    httpx.RequestError,
-    httpx.HTTPStatusError,
-    httpx.TimeoutException,
+    httpx2.RequestError,
+    httpx2.HTTPStatusError,
+    httpx2.TimeoutException,
 )
 
 _retry_http = with_retry(
@@ -50,15 +50,15 @@ class ScraperClient(HttpClient):
         timeout: HTTP timeout in seconds. Defaults to 30.
         language: ``"pt"`` (default) or ``"en"`` — selects the locale of
             the resulting HTML pages.
-        transport: Optional ``httpx`` transport override (useful for
-            testing with ``httpx.MockTransport``).
+        transport: Optional ``httpx2`` transport override (useful for
+            testing with ``httpx2.MockTransport``).
     """
 
     def __init__(
         self,
         timeout: float = 30,
         language: str = "pt",
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
     ) -> None:
         super().__init__(timeout=timeout, transport=transport)
         self.language = language
