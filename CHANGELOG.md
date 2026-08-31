@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.0] - 2026-08-30
+### Alterado
+- Migração de `httpx` para `httpx2` (fork mantido pelo Pydantic, API idêntica) em `ScraperClient`, `data.py` e testes; `ScraperClient` agora aceita transportes `httpx2`.
+- Dependência `quantilica-core` elevada para `>=0.6.0` (versão que migra para `httpx2`).
+
 ## [0.8.1] - 2026-08-10
 ### Corrigido
 - Atualizada dependência `quantilica-core` para `>=0.5.0` devido à exigência do parâmetro `data` no `HttpClient.request`.

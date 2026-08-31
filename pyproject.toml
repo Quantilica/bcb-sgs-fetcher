@@ -1,6 +1,6 @@
 [project]
 name = "bcb-sgs-fetcher"
-version = "0.8.1"
+version = "0.9.0"
 description = "Fetcher for BCB SGS (Sistema Gerenciador de Séries Temporais)"
 readme = "README.md"
 authors = [
