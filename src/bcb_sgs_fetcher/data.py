@@ -242,9 +242,10 @@ class SgsDataClient:
         )
 
     def close(self) -> None:
-        pass  # HttpClient is stateless; connections close after each request
+        self.client.close()
 
     def __enter__(self) -> "SgsDataClient":
+        self.client.__enter__()
         return self
 
     def __exit__(
