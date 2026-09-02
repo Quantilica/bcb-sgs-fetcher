@@ -32,7 +32,7 @@ dependencies = [
     "httpx2>=2.12.0",
     "lxml>=5.0",
     "markdownify>=0.13",
-    "quantilica-core>=0.6.0",
+    "quantilica-core>=0.7.0",
 ]
 
 [project.urls]

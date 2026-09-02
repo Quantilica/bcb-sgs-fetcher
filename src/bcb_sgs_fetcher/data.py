@@ -242,15 +242,10 @@ class SgsDataClient:
         )
 
     def close(self) -> None:
-        if hasattr(self.client, "close"):
-            try:
-                self.client.close()
-            except Exception:
-                pass
+        self.client.close()
 
     def __enter__(self) -> "SgsDataClient":
-        if hasattr(self.client, "__enter__"):
-            self.client.__enter__()
+        self.client.__enter__()
         return self
 
     def __exit__(
