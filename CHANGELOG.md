@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1] - 2026-10-02
+### Corrigido
+- Renovação transparente de sessão HTTP (`JSESSIONID`) no `ScraperClient` (`fetch_validated`) com detecção de redirecionamento, status 401/403/419/440 e marcadores de sessão expirada do SGS, com retries automáticos.
+- Headers HTTP atualizados com User-Agent de navegador moderno, `Accept`, `Referer` e `Accept-Language: pt-BR` seguro contra HTTP 406.
+- Validação de conteúdo HTML antes de persistir em cache em `bulk.py` (`_parse_validated_html`), descartando respostas inválidas e expurgando cache corrompido.
+- Extração resiliente de IDs em `extract_ids_from_data_dir` com fallback linha a linha e mensagens diagnósticas detalhadas no Passo 3/4 do `catalogo sync`.
+- Correção de bugs latentes no `ScraperClient` (`scraper.session` inexistente em `fetch_metadata_bulk` e `_transport` em `get_scraper`).
+
 ## [0.9.0] - 2026-08-30
 ### Alterado
 - Migração de `httpx` para `httpx2` (fork mantido pelo Pydantic, API idêntica) em `ScraperClient`, `data.py` e testes; `ScraperClient` agora aceita transportes `httpx2`.
