@@ -17,6 +17,18 @@ def test_write_series_data_roundtrip(tmp_path):
     assert storage.read_series_data(path) == rows
 
 
+def test_write_series_data_with_manifest_sidecar(tmp_path):
+    rows = [{"series_id": 1, "date": "2020-01-01", "value": "1.5", "date_end": None}]
+    path = storage.write_series_data(tmp_path, 1, rows, write_manifest=True)
+    manifest_path = path.with_suffix(path.suffix + ".manifest.json")
+    assert manifest_path.is_file()
+    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest_data["source_id"] == "bcb"
+    assert manifest_data["dataset_id"] == "series_1"
+    assert manifest_data["producer"] == "bcb-sgs-fetcher"
+    assert len(manifest_data["sha256"]) == 64
+
+
 def test_same_day_refetch_does_not_overwrite(tmp_path):
     storage.write_series_data(
         tmp_path, 7, [{"a": 1}], dt.datetime(2026, 1, 1, 10, 0, 0)

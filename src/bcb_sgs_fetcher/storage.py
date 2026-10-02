@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from quantilica.core.files import write_bytes_atomic, write_text_atomic
+from quantilica.core.manifests import DownloadManifest, write_manifest_sidecar
 from quantilica.core.storage import StampedDataRepository, stamp_filename
 
 from .constants import BASIC, FULL
@@ -148,6 +149,9 @@ def write_series_data(
     series_id: int,
     rows: list[Any],
     timestamp: dt.date | dt.datetime | None = None,
+    *,
+    manifest: DownloadManifest | None = None,
+    write_manifest: bool = False,
 ) -> Path:
     """Write a list of observation dicts as a stamped snapshot.
 
@@ -156,12 +160,26 @@ def write_series_data(
         series_id: The series ID.
         rows: The rows to write.
         timestamp: The timestamp for the snapshot.
+        manifest: Optional DownloadManifest sidecar.
+        write_manifest: Whether to automatically generate and write a manifest sidecar.
 
     Returns:
         Path: The path to the written snapshot.
     """
     path = data_file_path(output, series_id, timestamp)
     save_json(rows, path)
+    if manifest is not None or write_manifest:
+        if manifest is None:
+            content = path.read_bytes()
+            manifest = DownloadManifest.from_content(
+                source_id="bcb",
+                dataset_id=f"series_{series_id}",
+                url=f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{series_id}/dados",
+                content=content,
+                path=str(path.absolute()),
+                producer="bcb-sgs-fetcher",
+            )
+        write_manifest_sidecar(path, manifest)
     return path
 
 
@@ -321,6 +339,8 @@ def write_metadata(
     html_basic: bytes | None = None,
     html_full: bytes | None = None,
     date: dt.date | None = None,
+    manifest: DownloadManifest | None = None,
+    write_manifest: bool = False,
 ) -> None:
     """Write metadata in the ``catalogo sync`` layout.
 
@@ -336,9 +356,25 @@ def write_metadata(
         html_basic: Raw HTML bytes for basic metadata.
         html_full: Raw HTML bytes for full metadata.
         date: The date for month-partitioning.
+        manifest: Optional DownloadManifest sidecar.
+        write_manifest: Whether to automatically generate and write a manifest sidecar.
     """
     md = metadata_dir(output, date)
-    save_json({BASIC: basic, FULL: full}, md / f"{int(series_id):06d}.json")
+    meta_path = md / f"{int(series_id):06d}.json"
+    meta_data = {BASIC: basic, FULL: full}
+    save_json(meta_data, meta_path)
+    if manifest is not None or write_manifest:
+        if manifest is None:
+            content = meta_path.read_bytes()
+            manifest = DownloadManifest.from_content(
+                source_id="bcb",
+                dataset_id=f"metadata_{series_id}",
+                url=f"https://www3.bcb.gov.br/sgspub/consultarvalores/consultarValoresSeries.do?method=consultarMetadadosSeries&codigoSerie={series_id}",
+                content=content,
+                path=str(meta_path.absolute()),
+                producer="bcb-sgs-fetcher",
+            )
+        write_manifest_sidecar(meta_path, manifest)
     if html_basic is not None:
         save_bytes(html_basic, md / f"{int(series_id):06d}_basic.html")
     if html_full is not None:

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.2] - 2026-10-02
+### Adicionado
+- Escrita de manifest sidecars (`.manifest.json`) em `storage.write_series_data` e `storage.write_metadata` utilizando `write_manifest_sidecar` e `DownloadManifest` de `quantilica-core>=0.8.1`, garantindo rastreabilidade de proveniência com SHA-256 para todas as séries e metadados baixados.
+### Alterado
+- Dependência `quantilica-core` elevada para `>=0.8.1`.
+
 ## [0.9.1] - 2026-10-02
 ### Corrigido
 - Renovação transparente de sessão HTTP (`JSESSIONID`) no `ScraperClient` (`fetch_validated`) com detecção de redirecionamento, status 401/403/419/440 e marcadores de sessão expirada do SGS, com retries automáticos.
