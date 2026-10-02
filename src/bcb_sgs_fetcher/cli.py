@@ -166,7 +166,12 @@ def handle_pipeline(args: argparse.Namespace) -> None:
     logger.info("=== Passo 3/4: extração de IDs ===")
     ids = bulk.extract_ids_from_data_dir(data_dir)
     if not ids:
-        logger.error("Nenhum ID extraído — verifique os erros acima.")
+        logger.error(
+            "Passo 3/4 falhou: nenhum ID extraído de %s — os metadados "
+            "(Passo 4/4) não serão baixados. Corrija os erros acima e rode "
+            "'catalogo sync' novamente.",
+            data_dir,
+        )
         sys.exit(1)
     ids_file = data_dir / "ids.txt"
     ids_file.parent.mkdir(parents=True, exist_ok=True)

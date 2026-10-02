@@ -58,7 +58,10 @@ from .scraper import (  # noqa: E402
     LOCALIZAR_SERIES_URL,
     METADADOS_BASICOS_URL,
     METADADOS_FULL_URL,
+    SESSION_EXPIRED_MARKERS,
     ScraperClient,
+    SessionExpiredError,
+    looks_like_session_expired,
 )
 
 __all__ = [
@@ -83,9 +86,11 @@ __all__ = [
     "MethodologyField",
     "ProviderField",
     "ScraperClient",
+    "SESSION_EXPIRED_MARKERS",
     "SeriesMetadataBasic",
     "SeriesMetadataFull",
     "SeriesPoint",
+    "SessionExpiredError",
     "SgsDataClient",
     "ThemeNode",
     "extract_arvore_grupos",
@@ -97,6 +102,7 @@ __all__ = [
     "get_n_pages",
     "get_url",
     "logger",
+    "looks_like_session_expired",
     "parse_metadata_basic",
     "parse_metadata_full",
     "storage",

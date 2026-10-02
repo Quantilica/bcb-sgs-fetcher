@@ -650,7 +650,11 @@ def pipeline_cmd(
     with console.status("[cyan]Extraindo IDs...[/cyan]"):
         ids = bulk.extract_ids_from_data_dir(data_dir)
     if not ids:
-        console.print("[red]Erro:[/red] Nenhum ID extraído — verifique erros acima.")
+        console.print(
+            f"[red]Erro:[/red] Nenhum ID extraído de [dim]{data_dir}[/dim]"
+            " — verifique erros de conteúdo/sessão nos passos 1 e 2 acima"
+            " e rode 'catalogo sync' novamente."
+        )
         raise typer.Exit(code=1)
     ids_file = data_dir / "ids.txt"
     ids_file.parent.mkdir(parents=True, exist_ok=True)

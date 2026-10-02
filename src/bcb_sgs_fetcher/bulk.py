@@ -10,6 +10,7 @@ wrapper is needed here.
 
 import dataclasses
 import datetime as dt
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -21,10 +22,67 @@ from bs4 import BeautifulSoup
 from . import logger, storage
 from .constants import BASIC, FULL
 from .data import Period, SgsDataClient
+from .models import GrupoSeriesRow
 from .reader import arvore_grupos as ag_reader
 from .reader import table_utils
 from .reader.metadata import parse_metadata_basic, parse_metadata_full
-from .scraper import ScraperClient
+from .scraper import ScraperClient, looks_like_session_expired
+
+_DIAGNOSTIC_SNIPPET_LIMIT = 300
+
+
+def _diagnostic_snippet(content: bytes, limit: int = _DIAGNOSTIC_SNIPPET_LIMIT) -> str:
+    """Return a whitespace-collapsed snippet of *content* for error logs."""
+    text = content[:2048].decode("latin-1", errors="replace")
+    return " ".join(text.split())[:limit]
+
+
+def _parse_validated_html(
+    content: bytes,
+    label: str,
+    *,
+    require_table: bool = False,
+) -> BeautifulSoup | None:
+    """Parse downloaded HTML and validate it carries useful content.
+
+    Validation covers the failure modes observed against the SGS portal:
+    empty responses, session-expiry pages (after a JSESSIONID timeout)
+    and pages without the expected series table.
+
+    Args:
+        content: The raw HTML bytes.
+        label: Human-readable origin of the content, used in logs.
+        require_table: When True, also require at least one ``<table>``.
+
+    Returns:
+        BeautifulSoup | None: The parsed page, or None when invalid —
+        in which case a diagnostic error with the received content is
+        logged.
+    """
+    if not content or not content.strip():
+        logger.error(
+            "Conteúdo vazio recebido de %s (0 bytes) — possível erro de sessão "
+            "ou rede; veja logs acima.",
+            label,
+        )
+        return None
+    if looks_like_session_expired(content=content):
+        logger.error(
+            "Conteúdo de %s parece uma página de sessão expirada do SGS. "
+            "Snippet recebido: %s",
+            label,
+            _diagnostic_snippet(content),
+        )
+        return None
+    soup = BeautifulSoup(content.decode("latin-1", errors="replace"), "lxml")
+    if require_table and soup.find("table") is None:
+        logger.error(
+            "Conteúdo de %s não contém a tabela esperada. Snippet recebido: %s",
+            label,
+            _diagnostic_snippet(content),
+        )
+        return None
+    return soup
 
 
 def fetch_arvore_grupos(
@@ -51,9 +109,14 @@ def fetch_arvore_grupos(
         on_subgrupo_page: Callback for when a sub-group page is processed.
     """
     html = scraper.get_grupos_principais()
+    soup = _parse_validated_html(html, "GruposPrincipais.html", require_table=True)
+    if soup is None:
+        raise RuntimeError(
+            "Resposta inválida para GruposPrincipais (vazia ou sessão "
+            "expirada) — catálogo não pode ser montado."
+        )
     storage.save_bytes(html, dest_dir / "GruposPrincipais.html")
 
-    soup = BeautifulSoup(html.decode("latin-1"), "lxml")
     table = soup.find("table")
     grupo_links = ag_reader.extract_arvore_grupos(table)
     total_grupos = len(grupo_links)
@@ -71,12 +134,29 @@ def fetch_arvore_grupos(
         logger.debug("Fetching grupo: %s", nome)
         try:
             content = scraper.get_arvore_grupo(id_grupo, seq_grupo)
-            storage.save_bytes(content, dest_file)
         except Exception as exc:
-            logger.error("Failed to fetch grupo %s: %s", nome, exc)
+            logger.error(
+                "Failed to fetch grupo %s (id=%s, seq=%s): %s",
+                nome,
+                id_grupo,
+                seq_grupo,
+                exc,
+            )
             if on_grupo is not None:
                 on_grupo(nome, done, total_grupos)
             continue
+        if not _parse_validated_html(content, f"árvore do grupo {nome}"):
+            logger.error(
+                "Conteúdo inválido para a árvore do grupo %s (id=%s) — "
+                "arquivo não foi salvo; execute 'catalogo sync' novamente "
+                "para refetch.",
+                nome,
+                id_grupo,
+            )
+            if on_grupo is not None:
+                on_grupo(nome, done, total_grupos)
+            continue
+        storage.save_bytes(content, dest_file)
         if on_grupo is not None:
             on_grupo(nome, done, total_grupos)
         time.sleep(sleeptime)
@@ -88,6 +168,8 @@ def fetch_arvore_grupos(
         except Exception as exc:
             logger.error("Failed to parse %s: %s", file, exc)
             continue
+        if not subgroup_links:
+            logger.debug("Nenhum subgrupo encontrado em %s", file)
         group_dest_dir = dest_dir / file.stem
         for gl in subgroup_links:
             grupo_id = int(gl.grupo_id)
@@ -114,14 +196,23 @@ def _fetch_grupo_series_pages(
     dest_file = dest_dir / f"{grupo_id:04d}-{grupo_nome}_{page:03d}.html"
     init_done = False
 
+    content: bytes = b""
     if dest_file.exists():
         content = dest_file.read_bytes()
-    else:
+        if (
+            _parse_validated_html(content, f"{dest_file} (cache)", require_table=True)
+            is None
+        ):
+            logger.error(
+                "Arquivo em cache inválido %s — removendo para refetch.",
+                dest_file,
+            )
+            dest_file.unlink(missing_ok=True)
+            content = b""
+
+    if not content:
         try:
             content = scraper.get_grupo_series(grupo_id)
-            storage.save_bytes(content, dest_file)
-            time.sleep(sleeptime)
-            init_done = True
         except Exception as exc:
             logger.error(
                 "Failed to fetch series for grupo %s: %s",
@@ -129,6 +220,16 @@ def _fetch_grupo_series_pages(
                 exc,
             )
             return
+        if (
+            _parse_validated_html(
+                content, f"séries do grupo {grupo_id}", require_table=True
+            )
+            is None
+        ):
+            return
+        storage.save_bytes(content, dest_file)
+        time.sleep(sleeptime)
+        init_done = True
 
     soup = BeautifulSoup(content.decode("latin-1"), "lxml")
     n_pages = table_utils.get_n_pages(soup)
@@ -163,7 +264,6 @@ def _fetch_grupo_series_pages(
         )
         try:
             content = scraper.change_page(page)
-            storage.save_bytes(content, dest_file)
         except Exception as exc:
             logger.error(
                 "Failed to fetch page %d for grupo %s: %s",
@@ -172,6 +272,16 @@ def _fetch_grupo_series_pages(
                 exc,
             )
             continue
+        if (
+            _parse_validated_html(
+                content,
+                f"página {page} do grupo {grupo_id}",
+                require_table=True,
+            )
+            is None
+        ):
+            continue
+        storage.save_bytes(content, dest_file)
         if on_page is not None:
             on_page(grupo_nome, page, n_pages)
         time.sleep(sleeptime)
@@ -195,7 +305,22 @@ def fetch_series_desativadas(
     """
     page = 1
     dest_file = dest_dir / f"series-desativadas_{page:03d}.html"
-    content = scraper.get_series_desativadas()
+    try:
+        content = scraper.get_series_desativadas()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Falha ao baixar a primeira página de séries desativadas: {exc}"
+        ) from exc
+    if (
+        _parse_validated_html(
+            content, "series-desativadas página 1", require_table=True
+        )
+        is None
+    ):
+        raise RuntimeError(
+            "Resposta inválida para séries desativadas (vazia, sessão "
+            "expirada ou sem tabela de séries)."
+        )
     storage.save_bytes(content, dest_file)
 
     soup = BeautifulSoup(content.decode("latin-1"), "lxml")
@@ -218,11 +343,23 @@ def fetch_series_desativadas(
             continue
         try:
             content = scraper.change_page(page)
-            storage.save_bytes(content, dest_file)
-            logger.debug("Saved page %d/%d", page, n_pages)
         except Exception as exc:
             logger.error("Failed to fetch page %d: %s", page, exc)
             continue
+        if (
+            _parse_validated_html(
+                content, f"series-desativadas página {page}", require_table=True
+            )
+            is None
+        ):
+            logger.error(
+                "Página %d de séries desativadas inválida — arquivo não "
+                "salvo; execute 'catalogo sync' novamente para refetch.",
+                page,
+            )
+            continue
+        storage.save_bytes(content, dest_file)
+        logger.debug("Saved page %d/%d", page, n_pages)
         if on_page is not None:
             on_page(page, n_pages)
         time.sleep(sleeptime)
@@ -282,7 +419,7 @@ def fetch_metadata_bulk(
             thread_local.client = ScraperClient(
                 timeout=scraper.timeout,
                 language=scraper.language,
-                transport=scraper._transport,
+                transport=scraper.transport,
             )
         return thread_local.client
 
@@ -323,8 +460,7 @@ def fetch_metadata_bulk(
                             max_session_retries,
                             wait,
                         )
-                        if worker_scraper.session is not None:
-                            worker_scraper.session.close()
+                        worker_scraper.close()
                         time.sleep(wait)
                         worker_scraper.init_session()
                     else:
@@ -373,16 +509,71 @@ def fetch_metadata_bulk(
 
 
 def _collect_freqs(html_file: Path, freqs: dict[int, str | None]) -> None:
-    """Parse one listing page, recording ``series_id -> acronym``."""
+    """Parse one listing page, recording ``series_id -> acronym``.
+
+    Resilient by design: unreadable files, pages without the series
+    table and individual malformed rows are logged and skipped instead
+    of aborting the whole extraction.
+    """
     try:
-        soup = BeautifulSoup(html_file.read_bytes().decode("latin-1"), "lxml")
-        table = soup.select_one("table#tabelaSeries")
-        if table is None:
-            return
-        for row in table_utils.extract_table_data(table):
-            freqs[row.series_id] = row.frequency_acronym
+        content = html_file.read_bytes()
+    except OSError as exc:
+        logger.error("Não foi possível ler %s: %s", html_file, exc)
+        return
+    soup = _parse_validated_html(content, str(html_file))
+    if soup is None:
+        return
+    table = soup.select_one("table#tabelaSeries")
+    if table is None:
+        logger.warning(
+            "%s não contém table#tabelaSeries — nenhuma série extraída "
+            "deste arquivo. Snippet: %s",
+            html_file,
+            _diagnostic_snippet(content),
+        )
+        return
+    try:
+        rows = table_utils.extract_table_data(table)
     except Exception as exc:
-        logger.warning("Failed to parse %s: %s", html_file, exc)
+        logger.warning(
+            "Falha ao interpretar %s (%s) — extraindo linha a linha",
+            html_file,
+            exc,
+        )
+        rows = _extract_rows_individually(table, html_file)
+    for row in rows:
+        freqs[row.series_id] = row.frequency_acronym
+
+
+def _extract_rows_individually(table, html_file: Path) -> list[GrupoSeriesRow]:
+    """Best-effort per-row extraction, skipping malformed rows."""
+    rows_out: list[GrupoSeriesRow] = []
+    for tr in table.find_all("tr"):
+        tds = tr.select("td")
+        # Coluna 1 = "Cód." (series id), coluna 4 = "Per." (frequência).
+        if len(tds) < 5:
+            continue
+        try:
+            sid = int(re.sub(r"\s+", " ", tds[1].text.strip()))
+        except ValueError:
+            continue
+        freq = re.sub(r"\s+", " ", tds[4].text.strip()) or None
+        rows_out.append(
+            GrupoSeriesRow(
+                series_id=sid,
+                name_index=None,
+                frequency_acronym=freq,
+                unit=None,
+                start_date=None,
+                end_date=None,
+                source=None,
+                special=False,
+                message=None,
+            )
+        )
+    if not rows_out:
+        logger.warning("Nenhuma linha válida em %s", html_file)
+    return rows_out
 
 
 def extract_series_freq_map_from_data_dir(
@@ -406,7 +597,11 @@ def extract_series_freq_map_from_data_dir(
 
     arvore_dir = data_dir / "arvore-grupos"
     if not arvore_dir.exists():
-        logger.warning("Diretório não encontrado: %s", arvore_dir)
+        logger.warning(
+            "Diretório não encontrado: %s — rode 'catalogo sync' ou "
+            "'catalogo arvore-grupos' antes de extrair IDs.",
+            arvore_dir,
+        )
     else:
         series_files = [
             f for f in sorted(arvore_dir.rglob("*.html")) if f.parent != arvore_dir
@@ -416,12 +611,23 @@ def extract_series_freq_map_from_data_dir(
             len(series_files),
             arvore_dir,
         )
+        before = len(freqs)
         for html_file in series_files:
             _collect_freqs(html_file, freqs)
+        if len(freqs) == before and series_files:
+            logger.warning(
+                "Nenhuma série extraída dos %d arquivo(s) em %s",
+                len(series_files),
+                arvore_dir,
+            )
 
     desativ_dir = data_dir / "series-desativadas"
     if not desativ_dir.exists():
-        logger.warning("Diretório não encontrado: %s", desativ_dir)
+        logger.warning(
+            "Diretório não encontrado: %s — rode 'catalogo sync' ou "
+            "'catalogo series-desativadas' antes de extrair IDs.",
+            desativ_dir,
+        )
     else:
         desativ_files = sorted(desativ_dir.glob("series-desativadas_*.html"))
         logger.debug(
@@ -429,8 +635,15 @@ def extract_series_freq_map_from_data_dir(
             len(desativ_files),
             desativ_dir,
         )
+        before = len(freqs)
         for html_file in desativ_files:
             _collect_freqs(html_file, freqs)
+        if len(freqs) == before and desativ_files:
+            logger.warning(
+                "Nenhuma série extraída dos %d arquivo(s) em %s",
+                len(desativ_files),
+                desativ_dir,
+            )
 
     return freqs
 
@@ -452,7 +665,20 @@ def extract_ids_from_data_dir(data_dir: Path) -> list[int]:
     Returns:
         list[int]: A sorted list of unique series IDs.
     """
-    return sorted(extract_series_freq_map_from_data_dir(data_dir))
+    freqs = extract_series_freq_map_from_data_dir(data_dir)
+    if not freqs:
+        arvore_dir = data_dir / "arvore-grupos"
+        desativ_dir = data_dir / "series-desativadas"
+        logger.error(
+            "Nenhum ID extraído de %s (arvore-grupos: %s | series-desativadas: "
+            "%s). Verifique se os passos anteriores baixaram páginas válidas e "
+            "se não há erros de sessão expirada/conteúdo vazio nos logs acima.",
+            data_dir,
+            "OK" if arvore_dir.exists() else "ausente",
+            "OK" if desativ_dir.exists() else "ausente",
+        )
+        return []
+    return sorted(freqs)
 
 
 def build_series_freqs(
