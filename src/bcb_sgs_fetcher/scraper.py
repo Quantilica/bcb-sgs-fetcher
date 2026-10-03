@@ -127,8 +127,13 @@ class ScraperClient(HttpClient):
         timeout: float = 30,
         language: str = "pt",
         transport: httpx2.BaseTransport | None = None,
+        min_interval: float = 0.0,
     ) -> None:
-        super().__init__(timeout=timeout, transport=transport)
+        super().__init__(
+            timeout=timeout,
+            transport=transport,
+            min_interval=min_interval,
+        )
         self.language = language
         self.init_session(language=language)
 

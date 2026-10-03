@@ -206,8 +206,13 @@ class SgsDataClient:
         self,
         timeout: float = 60,
         transport: httpx2.BaseTransport | None = None,
+        min_interval: float = 0.0,
     ) -> None:
-        self.client = HttpClient(timeout=timeout, transport=transport)
+        self.client = HttpClient(
+            timeout=timeout,
+            transport=transport,
+            min_interval=min_interval,
+        )
 
     def fetch_series_data(
         self,

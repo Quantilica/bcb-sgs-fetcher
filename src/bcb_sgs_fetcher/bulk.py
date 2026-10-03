@@ -108,6 +108,13 @@ def fetch_arvore_grupos(
         on_grupo: Callback for when a top-level group is processed.
         on_subgrupo_page: Callback for when a sub-group page is processed.
     """
+    if (
+        hasattr(scraper, "min_interval")
+        and sleeptime > 0
+        and scraper.min_interval == 0.0
+    ):
+        scraper.min_interval = sleeptime
+
     html = scraper.get_grupos_principais()
     soup = _parse_validated_html(html, "GruposPrincipais.html", require_table=True)
     if soup is None:
@@ -159,7 +166,6 @@ def fetch_arvore_grupos(
         storage.save_bytes(content, dest_file)
         if on_grupo is not None:
             on_grupo(nome, done, total_grupos)
-        time.sleep(sleeptime)
 
     for file in sorted(dest_dir.glob("*-*.html")):
         try:
@@ -228,7 +234,6 @@ def _fetch_grupo_series_pages(
         ):
             return
         storage.save_bytes(content, dest_file)
-        time.sleep(sleeptime)
         init_done = True
 
     soup = BeautifulSoup(content.decode("latin-1"), "lxml")
@@ -247,7 +252,6 @@ def _fetch_grupo_series_pages(
             try:
                 scraper.get_grupo_series(grupo_id)
                 init_done = True
-                time.sleep(sleeptime)
             except Exception as exc:
                 logger.error(
                     "Failed to init grupo %s for page %d: %s",
@@ -284,7 +288,6 @@ def _fetch_grupo_series_pages(
         storage.save_bytes(content, dest_file)
         if on_page is not None:
             on_page(grupo_nome, page, n_pages)
-        time.sleep(sleeptime)
 
 
 def fetch_series_desativadas(
@@ -303,6 +306,13 @@ def fetch_series_desativadas(
         sleeptime: Sleep time between requests.
         on_page: Callback for when a page is processed.
     """
+    if (
+        hasattr(scraper, "min_interval")
+        and sleeptime > 0
+        and scraper.min_interval == 0.0
+    ):
+        scraper.min_interval = sleeptime
+
     page = 1
     dest_file = dest_dir / f"series-desativadas_{page:03d}.html"
     try:
@@ -332,8 +342,6 @@ def fetch_series_desativadas(
     if n_pages == 1:
         return
 
-    time.sleep(sleeptime)
-
     for page in range(2, n_pages + 1):
         dest_file = dest_dir / f"series-desativadas_{page:03d}.html"
         if dest_file.exists():
@@ -362,7 +370,6 @@ def fetch_series_desativadas(
         logger.debug("Saved page %d/%d", page, n_pages)
         if on_page is not None:
             on_page(page, n_pages)
-        time.sleep(sleeptime)
 
 
 def fetch_metadata_bulk(
@@ -406,6 +413,12 @@ def fetch_metadata_bulk(
     Returns:
         tuple[int, int]: ``(successful, failed)`` counts.
     """
+    if (
+        hasattr(scraper, "min_interval")
+        and sleeptime > 0
+        and scraper.min_interval == 0.0
+    ):
+        scraper.min_interval = sleeptime
 
     total = len(series_ids)
     lock = threading.Lock()
@@ -416,10 +429,12 @@ def fetch_metadata_bulk(
 
     def get_scraper() -> ScraperClient:
         if not hasattr(thread_local, "client"):
+            min_interval = getattr(scraper, "min_interval", 0.0)
             thread_local.client = ScraperClient(
                 timeout=scraper.timeout,
                 language=scraper.language,
                 transport=scraper.transport,
+                min_interval=min_interval,
             )
         return thread_local.client
 
@@ -774,6 +789,10 @@ def fetch_data_bulk(
     stop = threading.Event()
     counters = {"processed": 0, "ok": 0, "failed": 0, "skipped": 0}
 
+    if hasattr(client, "client") and hasattr(client.client, "min_interval"):
+        if sleeptime > 0 and client.client.min_interval == 0.0:
+            client.client.min_interval = sleeptime
+
     def _worker(series_id: int, freq: str | None) -> None:
         if stop.is_set():
             return
@@ -812,9 +831,6 @@ def fetch_data_bulk(
             except Exception as exc:
                 logger.error("Falha ao baixar série %d: %s", series_id, exc)
                 outcome = "failed"
-            finally:
-                if not stop.is_set():
-                    time.sleep(sleeptime)
         with lock:
             counters[outcome] += 1
             counters["processed"] += 1
@@ -864,7 +880,6 @@ def _fetch_one_metadata(
 ) -> bool:
     dest_basic = dest_dir / f"{series_id:06d}_basic.html"
     dest_full = dest_dir / f"{series_id:06d}_full.html"
-    downloaded = False
 
     if dest_basic.exists() and dest_full.exists():
         html = {
@@ -876,7 +891,6 @@ def _fetch_one_metadata(
         html = scraper.request_metadata_html(series_id, progress=progress)
         storage.save_bytes(html[BASIC], dest_basic)
         storage.save_bytes(html[FULL], dest_full)
-        downloaded = True
 
     try:
         basic = parse_metadata_basic(html[BASIC].decode("latin-1"))
@@ -898,8 +912,6 @@ def _fetch_one_metadata(
         )
         dest_basic.unlink(missing_ok=True)
         dest_full.unlink(missing_ok=True)
-        if downloaded:
-            time.sleep(sleeptime)
         return False
 
     if basic.series_id != series_id:
@@ -910,8 +922,6 @@ def _fetch_one_metadata(
         )
         dest_basic.unlink(missing_ok=True)
         dest_full.unlink(missing_ok=True)
-        if downloaded:
-            time.sleep(sleeptime)
         return False
 
     try:
@@ -932,8 +942,6 @@ def _fetch_one_metadata(
             series_id,
             exc,
         )
-        if downloaded:
-            time.sleep(sleeptime)
         return False
 
     metadata = {
@@ -941,8 +949,5 @@ def _fetch_one_metadata(
         FULL: dataclasses.asdict(full),
     }
     storage.save_json(metadata, dest_dir / f"{series_id:06d}.json")
-
-    if downloaded:
-        time.sleep(sleeptime)
 
     return True
