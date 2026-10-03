@@ -1,5 +1,11 @@
 # Changelog
 
+## [Não lançado]
+
+### Alterado
+- Consolidação de `cli.py` em thin wrapper canônico delegando para o plugin Typer/Rich (redução de 515 para 24 LOC).
+- Saneamento de pacing: substituição de 11 chamadas imperativas a `time.sleep` em `bulk.py` por taxa de cadência centralizada via `HttpClient(min_interval=...)`.
+
 ## [0.9.2] - 2026-10-02
 ### Adicionado
 - Escrita de manifest sidecars (`.manifest.json`) em `storage.write_series_data` e `storage.write_metadata` utilizando `write_manifest_sidecar` e `DownloadManifest` de `quantilica-core>=0.8.1`, garantindo rastreabilidade de proveniência com SHA-256 para todas as séries e metadados baixados.
