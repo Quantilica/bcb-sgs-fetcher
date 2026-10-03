@@ -1,6 +1,5 @@
 """Tests for bulk data download and the frequency-map helper."""
 
-import argparse
 import datetime as dt
 import json
 import re
@@ -23,7 +22,7 @@ from bcb_sgs_fetcher.bulk import (
     fetch_data_bulk,
     fetch_series_desativadas,
 )
-from bcb_sgs_fetcher.cli import handle_fetch
+from bcb_sgs_fetcher.cli import main
 from bcb_sgs_fetcher.models import SeriesMetadataBasic, SeriesMetadataFull
 
 _LISTING_TEMPLATE = """
@@ -309,32 +308,36 @@ def test_fetch_data_bulk_keyboardinterrupt_cancels(tmp_path):
 # --- CLI validation ------------------------------------------------------
 
 
-def _sync_args(**overrides):
-    base = dict(
-        series_id=None,
-        ids_file=None,
-        catalog_dir=overrides.pop("catalog_dir", None),
-        frequency=None,
-        period="all",
-        skip_existing=False,
-        workers=5,
-        sleeptime=0.0,
-        output=overrides.pop("output", None),
-    )
-    base.update(overrides)
-    return argparse.Namespace(**base)
+def _run_cli(argv: list[str]) -> int:
+    """Executar a CLI fina (main) e retornar o código de saída."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(argv)
+    return exc_info.value.code
 
 
 def test_sync_rejects_series_id_and_ids_file_together(tmp_path):
     ids_file = tmp_path / "ids.txt"
     ids_file.write_text("1\n")
-    with pytest.raises(SystemExit):
-        handle_fetch(_sync_args(output=tmp_path, series_id=1, ids_file=ids_file))
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "series",
+                "sync",
+                "1",
+                "--ids-file",
+                str(ids_file),
+                "-o",
+                str(tmp_path),
+            ]
+        )
+    assert exc_info.value.code == 1
 
 
-def test_sync_defaults_to_all_and_warns_when_empty(tmp_path):
+def test_sync_defaults_to_all_and_warns_when_empty(tmp_path, capsys):
     # No sources, empty catalog dir -> no error, just a warning + return.
-    handle_fetch(_sync_args(output=tmp_path, catalog_dir=tmp_path))
+    assert _run_cli(
+        ["series", "sync", "-o", str(tmp_path), "--catalog-dir", str(tmp_path)]
+    ) in (0, None)
 
 
 # --- scraped-page validation / session-expiry resilience ------------------
