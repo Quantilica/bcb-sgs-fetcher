@@ -259,13 +259,13 @@ def metadata(
         full = parse_metadata_full(htmls["full"])
         data_dir = storage.get_data_dir(output, dt.date.today())
         meta_dir = data_dir / "metadata"
-        storage.save_json(
-            dataclasses.asdict(basic),
-            meta_dir / f"{series_id:06d}_basic.json",
-        )
-        storage.save_json(
-            dataclasses.asdict(full),
-            meta_dir / f"{series_id:06d}_full.json",
+        storage.write_metadata(
+            output=output,
+            series_id=series_id,
+            basic=dataclasses.asdict(basic),
+            full=dataclasses.asdict(full),
+            date=dt.date.today(),
+            write_manifest=True,
         )
 
     lines = []

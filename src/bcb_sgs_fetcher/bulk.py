@@ -823,6 +823,7 @@ def fetch_data_bulk(
                         output,
                         series_id,
                         [dataclasses.asdict(p) for p in points],
+                        write_manifest=True,
                     )
                     outcome = "ok"
                 else:
@@ -944,10 +945,13 @@ def _fetch_one_metadata(
         )
         return False
 
-    metadata = {
-        BASIC: dataclasses.asdict(basic),
-        FULL: dataclasses.asdict(full),
-    }
-    storage.save_json(metadata, dest_dir / f"{series_id:06d}.json")
+    storage.write_metadata(
+        output=dest_dir,
+        series_id=series_id,
+        basic=dataclasses.asdict(basic),
+        full=dataclasses.asdict(full),
+        date=None,
+        write_manifest=True,
+    )
 
     return True
