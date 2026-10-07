@@ -2,9 +2,23 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from bcb_sgs_fetcher.cli import main
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _flat(text: str) -> str:
+    """Normalizar saída Rich para asserções imunes a layout.
+
+    Versões de typer/rich resolvem diferente no CI (latest) e no workspace,
+    mudando largura/quebra do painel de help. Remover ANSI e TODO o
+    whitespace torna `--opt` localizável mesmo quebrado em duas linhas.
+    """
+    return "".join(_ANSI.sub("", text).split())
 
 
 def _run_cli(argv: list[str]) -> int:
@@ -61,7 +75,7 @@ def test_series_metadata_help(capsys) -> None:
 def test_series_sync_help(capsys) -> None:
     """series sync --help documenta as principais opções."""
     assert _run_cli(["series", "sync", "--help"]) == 0
-    out = capsys.readouterr().out
+    out = _flat(capsys.readouterr().out)
     assert "--period" in out
     assert "--ids-file" in out
     assert "--skip-existing" in out
