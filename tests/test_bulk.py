@@ -594,4 +594,4 @@ def test_fetch_metadata_bulk_renews_session(tmp_path, monkeypatch):
 
     assert (ok, failed) == (1, 0)
     assert calls["n"] == 2  # first attempt failed, renewed, second succeeded
-    assert (tmp_path / "000001.json").exists()
+    assert (storage.metadata_dir(tmp_path) / "000001.json").exists()

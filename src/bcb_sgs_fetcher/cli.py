@@ -6,15 +6,31 @@ from __future__ import annotations
 
 import sys
 
-from .plugin import app
+try:
+    from .plugin import app
+except ImportError as exc:  # host (typer/rich/quantilica-cli) ausente
+    app = None
+    _PLUGIN_ERROR = exc
+else:
+    _PLUGIN_ERROR = None
 
 
 def main(argv: list[str] | None = None) -> None:
     """Executar a CLI do bcb-sgs-fetcher.
 
     Args:
-        argv (list[str] | None): Argumentos a parsear; None usa sys.argv.
+        argv (list[str]): Argumentos a parsear; None usa sys.argv.
+
+    Raises:
+        SystemExit: Sempre — 0 em sucesso (via Typer), 1 se o host
+            (typer/rich/quantilica-cli) não estiver instalado.
     """
+    if app is None:
+        print(
+            f"Erro: CLI requer 'typer' e 'rich' (via quantilica-cli): {_PLUGIN_ERROR}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     if argv is None:
         argv = sys.argv[1:]
     app(argv)
