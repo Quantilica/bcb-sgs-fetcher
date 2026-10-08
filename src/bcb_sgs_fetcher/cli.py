@@ -6,9 +6,13 @@ from __future__ import annotations
 
 import sys
 
+_HOST_MODULES = {"typer", "rich", "quantilica"}
+
 try:
     from .plugin import app
 except ImportError as exc:  # host (typer/rich/quantilica-cli) ausente
+    if (exc.name or "").split(".")[0] not in _HOST_MODULES:
+        raise
     app = None
     _PLUGIN_ERROR = exc
 else:
@@ -27,7 +31,9 @@ def main(argv: list[str] | None = None) -> None:
     """
     if app is None:
         print(
-            f"Erro: CLI requer 'typer' e 'rich' (via quantilica-cli): {_PLUGIN_ERROR}",
+            "Erro: CLI requer 'typer' e 'rich' (via quantilica-cli). "
+            'Instale via "quantilica install bcb-sgs". '
+            f"Detalhe: {_PLUGIN_ERROR}",
             file=sys.stderr,
         )
         raise SystemExit(1)
