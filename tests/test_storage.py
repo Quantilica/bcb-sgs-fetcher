@@ -115,3 +115,36 @@ def test_split_metadata_readers(tmp_path):
     assert storage.read_basic_metadata(tmp_path, 8) == {"series_id": 8}
     assert storage.read_full_metadata(tmp_path, 8) == {"last_update": "x"}
     assert not storage.has_basic_metadata(tmp_path, 999)
+
+
+def test_save_bytes_with_manifest_writes_sidecar(tmp_path):
+    target = tmp_path / "raw_basic.html"
+    storage.save_bytes_with_manifest(
+        b"<html/>",
+        target,
+        dataset_id="metadata_1_basic",
+        url="https://example/series/1",
+    )
+    assert target.read_bytes() == b"<html/>"
+    sidecar = target.with_suffix(target.suffix + ".manifest.json")
+    assert sidecar.exists()
+    manifest = json.loads(sidecar.read_text())
+    assert manifest["dataset_id"] == "metadata_1_basic"
+
+
+def test_write_combined_metadata_sits_next_to_html_with_sidecar(tmp_path):
+    md = tmp_path / "bcb-sgs_2026-10" / "metadata"
+    path = storage.write_combined_metadata(
+        md,
+        42,
+        basic={"series_id": 42},
+        full={"last_update": "x"},
+    )
+    assert path == md / "000042.json"
+    assert json.loads(path.read_text()) == {
+        "basic": {"series_id": 42},
+        "full": {"last_update": "x"},
+    }
+    assert (md / "000042.json.manifest.json").exists()
+    # No month re-partitioning: nothing nested under the metadata dir.
+    assert not (md / "bcb-sgs_2026-10").exists()

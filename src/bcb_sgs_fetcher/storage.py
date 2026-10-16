@@ -226,6 +226,42 @@ def save_bytes(data: bytes, filepath: Path) -> None:
     write_bytes_atomic(filepath, data)
 
 
+def save_bytes_with_manifest(
+    data: bytes,
+    filepath: Path,
+    *,
+    dataset_id: str,
+    url: str,
+    source_id: str = "bcb",
+    producer: str = "bcb-sgs-fetcher",
+) -> None:
+    """Write raw bytes atomically alongside a manifest sidecar.
+
+    Used for raw artifacts that would otherwise be invisible to the
+    concurrent ephemeral uploader (which only considers files carrying a
+    ``.manifest.json`` sidecar) — e.g. the raw metadata ``*_basic.html``
+    and ``*_full.html`` files.
+
+    Args:
+        data: The bytes to write.
+        filepath: The destination path.
+        dataset_id: The dataset identifier recorded in the manifest.
+        url: The source URL recorded in the manifest.
+        source_id: The source identifier (default ``"bcb"``).
+        producer: The producing package name.
+    """
+    save_bytes(data, filepath)
+    manifest = DownloadManifest.from_content(
+        source_id=source_id,
+        dataset_id=dataset_id,
+        url=url,
+        content=data,
+        path=str(filepath.absolute()),
+        producer=producer,
+    )
+    write_manifest_sidecar(filepath, manifest)
+
+
 # ---------------------------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------------------------
@@ -379,3 +415,52 @@ def write_metadata(
         save_bytes(html_basic, md / f"{int(series_id):06d}_basic.html")
     if html_full is not None:
         save_bytes(html_full, md / f"{int(series_id):06d}_full.html")
+
+
+def write_combined_metadata(
+    dest_dir: Path,
+    series_id: int,
+    *,
+    basic: dict | None,
+    full: dict | None,
+    write_manifest: bool = True,
+) -> Path:
+    """Write the combined ``{id:06d}.json`` directly into *dest_dir*.
+
+    Unlike :func:`write_metadata`, *dest_dir* is the metadata directory
+    itself (no month re-partitioning), matching the ``catalogo sync``
+    layout where the combined JSON sits next to its raw ``_basic.html`` /
+    ``_full.html`` siblings under ``bcb-sgs_{YYYY-MM}/metadata/``.
+
+    Args:
+        dest_dir: The metadata directory (already month-partitioned).
+        series_id: The series ID.
+        basic: Basic metadata dictionary.
+        full: Full metadata dictionary.
+        write_manifest: Whether to also write a manifest sidecar.
+
+    Returns:
+        Path: The path to the written combined metadata file.
+    """
+    path = dest_dir / f"{int(series_id):06d}.json"
+    content = json.dumps(
+        {BASIC: basic, FULL: full},
+        indent=1,
+        default=str,
+        ensure_ascii=False,
+    ).encode("utf-8")
+    if write_manifest:
+        url = (
+            "https://www3.bcb.gov.br/sgspub/consultarvalores/"
+            "consultarValoresSeries.do?method=consultarMetadadosSeries"
+            f"&codigoSerie={int(series_id)}"
+        )
+        save_bytes_with_manifest(
+            content,
+            path,
+            dataset_id=f"metadata_{int(series_id)}",
+            url=url,
+        )
+    else:
+        save_bytes(content, path)
+    return path

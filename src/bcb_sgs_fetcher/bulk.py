@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from quantilica.core.manifests import manifest_sidecar_path
 
 from . import logger, storage
 from .constants import BASIC, FULL
@@ -29,6 +30,28 @@ from .reader.metadata import parse_metadata_basic, parse_metadata_full
 from .scraper import ScraperClient, looks_like_session_expired
 
 _DIAGNOSTIC_SNIPPET_LIMIT = 300
+
+
+class SeriesMismatchError(RuntimeError):
+    """Raised when SGS returns metadata for a different series than requested.
+
+    The SGS ``consultarMetadadosSeries`` endpoint occasionally serves the
+    previously consulted series (server-side state drift), yielding an
+    off-by-N ``series_id``.  Treated as a retryable condition: the caller
+    renews the HTTP session and re-requests the series.
+    """
+
+
+def _unlink_artifact(path: Path) -> None:
+    """Remove an artifact together with any manifest sidecar.
+
+    Args:
+        path: The data file to remove (its ``.manifest.json`` sidecar,
+            when present, is removed as well so it does not linger as an
+            orphan for the ephemeral uploader).
+    """
+    path.unlink(missing_ok=True)
+    manifest_sidecar_path(path).unlink(missing_ok=True)
 
 
 def _diagnostic_snippet(content: bytes, limit: int = _DIAGNOSTIC_SNIPPET_LIMIT) -> str:
@@ -463,6 +486,28 @@ def fetch_metadata_bulk(
                     )
                     outcome = "ok" if ok else "failed"
                     break
+                except SeriesMismatchError as exc:
+                    session_retry += 1
+                    logger.warning(
+                        "SGS returned a different series for %d: %s — "
+                        "renewing session and retrying (%d/%d)",
+                        series_id,
+                        exc,
+                        session_retry,
+                        max_session_retries,
+                    )
+                    if session_retry < max_session_retries:
+                        wait = 10 * session_retry
+                        worker_scraper.close()
+                        time.sleep(wait)
+                        worker_scraper.init_session()
+                    else:
+                        logger.error(
+                            "Giving up on series %d after %d retries",
+                            series_id,
+                            max_session_retries,
+                        )
+                        outcome = "failed"
                 except Exception as exc:
                     session_retry += 1
                     logger.error("Session error for series %d: %s", series_id, exc)
@@ -881,6 +926,11 @@ def _fetch_one_metadata(
 ) -> bool:
     dest_basic = dest_dir / f"{series_id:06d}_basic.html"
     dest_full = dest_dir / f"{series_id:06d}_full.html"
+    meta_url = (
+        "https://www3.bcb.gov.br/sgspub/consultarvalores/"
+        "consultarValoresSeries.do?method=consultarMetadadosSeries"
+        f"&codigoSerie={series_id}"
+    )
 
     if dest_basic.exists() and dest_full.exists():
         html = {
@@ -890,8 +940,18 @@ def _fetch_one_metadata(
     else:
         logger.debug("Fetching metadata for series %d", series_id)
         html = scraper.request_metadata_html(series_id, progress=progress)
-        storage.save_bytes(html[BASIC], dest_basic)
-        storage.save_bytes(html[FULL], dest_full)
+        storage.save_bytes_with_manifest(
+            html[BASIC],
+            dest_basic,
+            dataset_id=f"metadata_{series_id}_basic",
+            url=meta_url,
+        )
+        storage.save_bytes_with_manifest(
+            html[FULL],
+            dest_full,
+            dataset_id=f"metadata_{series_id}_full",
+            url=meta_url,
+        )
 
     try:
         basic = parse_metadata_basic(html[BASIC].decode("latin-1"))
@@ -902,8 +962,8 @@ def _fetch_one_metadata(
             series_id,
             exc,
         )
-        dest_basic.unlink(missing_ok=True)
-        dest_full.unlink(missing_ok=True)
+        _unlink_artifact(dest_basic)
+        _unlink_artifact(dest_full)
         raise
     except Exception as exc:
         logger.error(
@@ -911,19 +971,16 @@ def _fetch_one_metadata(
             series_id,
             exc,
         )
-        dest_basic.unlink(missing_ok=True)
-        dest_full.unlink(missing_ok=True)
+        _unlink_artifact(dest_basic)
+        _unlink_artifact(dest_full)
         return False
 
     if basic.series_id != series_id:
-        logger.warning(
-            "Series ID mismatch for %d (got %d), removing files",
-            series_id,
-            basic.series_id,
+        _unlink_artifact(dest_basic)
+        _unlink_artifact(dest_full)
+        raise SeriesMismatchError(
+            f"requested series {series_id} but SGS returned {basic.series_id}"
         )
-        dest_basic.unlink(missing_ok=True)
-        dest_full.unlink(missing_ok=True)
-        return False
 
     try:
         full = parse_metadata_full(html[FULL].decode("latin-1"))
@@ -934,8 +991,8 @@ def _fetch_one_metadata(
             series_id,
             exc,
         )
-        dest_basic.unlink(missing_ok=True)
-        dest_full.unlink(missing_ok=True)
+        _unlink_artifact(dest_basic)
+        _unlink_artifact(dest_full)
         raise
     except Exception as exc:
         logger.error(
@@ -945,12 +1002,11 @@ def _fetch_one_metadata(
         )
         return False
 
-    storage.write_metadata(
-        output=dest_dir,
-        series_id=series_id,
+    storage.write_combined_metadata(
+        dest_dir,
+        series_id,
         basic=dataclasses.asdict(basic),
         full=dataclasses.asdict(full),
-        date=None,
         write_manifest=True,
     )
 

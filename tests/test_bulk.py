@@ -594,4 +594,54 @@ def test_fetch_metadata_bulk_renews_session(tmp_path, monkeypatch):
 
     assert (ok, failed) == (1, 0)
     assert calls["n"] == 2  # first attempt failed, renewed, second succeeded
-    assert (storage.metadata_dir(tmp_path) / "000001.json").exists()
+    assert (tmp_path / "000001.json").exists()
+
+
+def test_fetch_metadata_bulk_retries_on_series_mismatch(tmp_path, monkeypatch):
+    from quantilica.core import retry as core_retry
+
+    monkeypatch.setitem(
+        core_retry.retry_call.__kwdefaults__, "sleep", lambda _delay: None
+    )
+    monkeypatch.setattr(bulk.time, "sleep", lambda _s: None)
+
+    transport = httpx2.MockTransport(
+        lambda r: httpx2.Response(200, content=b"<html>ok</html>")
+    )
+    monkeypatch.setattr(
+        ScraperClient,
+        "request_metadata_html",
+        lambda self, series_id, progress=None: {
+            "basic": b"<basic/>",
+            "full": b"<full/>",
+        },
+    )
+    calls = {"n": 0}
+
+    def basic_by_call(_html):
+        calls["n"] += 1
+        # First attempt: SGS serves the wrong (off-by-N) series.
+        return SeriesMetadataBasic(series_id=999 if calls["n"] == 1 else 7)
+
+    monkeypatch.setattr(bulk, "parse_metadata_basic", basic_by_call)
+    monkeypatch.setattr(bulk, "parse_metadata_full", lambda _html: SeriesMetadataFull())
+
+    scraper = ScraperClient(transport=transport)
+    try:
+        ok, failed = bulk.fetch_metadata_bulk(
+            [7],
+            scraper,
+            tmp_path,
+            sleeptime=0,
+            workers=1,
+            max_session_retries=3,
+        )
+    finally:
+        scraper.close()
+
+    assert (ok, failed) == (1, 0)
+    assert calls["n"] == 2  # mismatch on 1st, retried with a fresh session
+    assert (tmp_path / "000007.json").exists()
+    basic = tmp_path / "000007_basic.html"
+    assert basic.exists()
+    assert basic.with_suffix(basic.suffix + ".manifest.json").exists()

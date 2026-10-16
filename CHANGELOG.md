@@ -7,6 +7,14 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Adicionado
+- Escrita de manifest sidecars (`.manifest.json`) para os HTMLs crus de metadados (`{id:06d}_basic.html` / `{id:06d}_full.html`) via novo `storage.save_bytes_with_manifest`, tornando-os visíveis ao uploader efêmero concorrente (CAS híbrido).
+
+### Corrigido
+- **Layout do metadado combinado no `catalogo sync`:** o `{id:06d}.json` passa a ser escrito ao lado dos HTMLs em `bcb-sgs_{YYYY-MM}/metadata/` (`storage.write_combined_metadata`), em vez do caminho aninhado incorreto `metadata/bcb-sgs_{YYYY-MM}/metadata/` que nenhum consumidor encontrava.
+- **`Series ID mismatch` (off-by-N):** quando a SGS devolve metadados de uma série diferente da solicitada, o erro agora é retentável (`bulk.SeriesMismatchError`) — renova a sessão e refaz a requisição — em vez de descartar a série definitivamente.
+- Remoção de sidecars junto ao descarte de HTML inválido (`_unlink_artifact`), evitando sidecars órfãos no disco.
+
 ### Alterado
 - Consolidação de `cli.py` em thin wrapper canônico delegando para o plugin Typer/Rich (redução de 515 para 24 LOC).
 - Saneamento de pacing: substituição de 11 chamadas imperativas a `time.sleep` em `bulk.py` por taxa de cadência centralizada via `HttpClient(min_interval=...)`.
