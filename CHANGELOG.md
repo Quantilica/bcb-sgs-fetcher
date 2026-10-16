@@ -8,14 +8,21 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ### Adicionado
+- `ScraperClient.renew()`: reset completo de sessão (fecha o cliente, limpa cookies e refaz o handshake `/index.jsp`).
+- `validate_metadata_iframe()`: valida os iframes de metadados (`cmiDadosBasicos`/`cmiMetadados`) antes de persistir — rejeita página vazia, de sessão expirada ou sem o marcador estrutural ("Dados básicos da série") via `SessionExpiredError`.
+- `ScraperClient(shared_limiter=...)`: permite compartilhar um `RateLimiter` entre workers.
 - Escrita de manifest sidecars (`.manifest.json`) para os HTMLs crus de metadados (`{id:06d}_basic.html` / `{id:06d}_full.html`) via novo `storage.save_bytes_with_manifest`, tornando-os visíveis ao uploader efêmero concorrente (CAS híbrido).
 
 ### Corrigido
+- **Sessão SGS ("Sessão expirada" em todo POST):** o `ScraperClient` agora mantém um cliente HTTP **persistente** (`_ensure_client`), preservando os `Set-Cookie` (`JSESSIONID`, `TS`, `SGS`) que o `/index.jsp` envia no redirect 302. Antes, o cliente transitório descartava esses cookies e todo POST a `localizarSeries.do` era tratado como sessão expirada.
+- **Validação dos iframes de metadados:** `request_metadata_html` passa a rodar `validate_metadata_iframe` em cada GET, levantando `SessionExpiredError` (que aciona o retry de sessão) em vez de salvar a página de erro e só falhar no parse.
 - **Layout do metadado combinado no `catalogo sync`:** o `{id:06d}.json` passa a ser escrito ao lado dos HTMLs em `bcb-sgs_{YYYY-MM}/metadata/` (`storage.write_combined_metadata`), em vez do caminho aninhado incorreto `metadata/bcb-sgs_{YYYY-MM}/metadata/` que nenhum consumidor encontrava.
 - **`Series ID mismatch` (off-by-N):** quando a SGS devolve metadados de uma série diferente da solicitada, o erro agora é retentável (`bulk.SeriesMismatchError`) — renova a sessão e refaz a requisição — em vez de descartar a série definitivamente.
 - Remoção de sidecars junto ao descarte de HTML inválido (`_unlink_artifact`), evitando sidecars órfãos no disco.
 
 ### Alterado
+- **Pacing global:** `fetch_metadata_bulk` usa um único `RateLimiter` compartilhado por todos os workers (cadência global, não por cliente), preservando a taxa agregada histórica (`intervalo do worker ÷ nº de workers`), com **backoff** automático na primeira expiração de sessão (freio anti-WAF).
+- Renovação de sessão no worker passa a usar `renew()` (recria o cliente) em vez de re-bater em `/index.jsp`.
 - Consolidação de `cli.py` em thin wrapper canônico delegando para o plugin Typer/Rich (redução de 515 para 24 LOC).
 - Saneamento de pacing: substituição de 11 chamadas imperativas a `time.sleep` em `bulk.py` por taxa de cadência centralizada via `HttpClient(min_interval=...)`.
 

@@ -12,6 +12,7 @@ from bcb_sgs_fetcher import (
     ScraperClient,
     SessionExpiredError,
     looks_like_session_expired,
+    validate_metadata_iframe,
 )
 from bcb_sgs_fetcher.constants import BASIC, FULL
 
@@ -40,27 +41,110 @@ def test_init_session_seeds_pt_cookie():
 
 def test_request_metadata_html_hits_three_endpoints():
     calls: list[tuple[str, str, bytes]] = []
+    basic_body = b"<html><body>Dados b\xe1sicos da s\xe9rie</body></html>"
+    full_body = b"<html>full</html>"
 
     def handler(request: httpx2.Request) -> httpx2.Response:
         url = str(request.url)
         calls.append((request.method, url, bytes(request.content)))
-        body = b"<html>basic</html>"
+        body = basic_body
         if "cmiMetadados" in url:
-            body = b"<html>full</html>"
+            body = full_body
         return httpx2.Response(200, content=body)
 
     transport = httpx2.MockTransport(handler)
     with ScraperClient(transport=transport) as client:
         result = client.request_metadata_html(series_id=42)
 
-    assert result[BASIC] == b"<html>basic</html>"
-    assert result[FULL] == b"<html>full</html>"
+    assert result[BASIC] == basic_body
+    assert result[FULL] == full_body
 
     methods_urls = [(m, u.split("?")[0]) for m, u, _ in calls]
     # session init GET + POST localizarSeries + GET basic + GET full
     assert ("POST", LOCALIZAR_SERIES_URL) in methods_urls
     assert ("GET", METADADOS_BASICOS_URL) in methods_urls
     assert ("GET", METADADOS_FULL_URL) in methods_urls
+
+
+_BASIC_IFRAME = b"<html><body>Dados b\xe1sicos da s\xe9rie</body></html>"
+_FULL_IFRAME = b"<html>full</html>"
+
+
+def test_validate_metadata_iframe_accepts_valid_basic():
+    validate_metadata_iframe(
+        _BASIC_IFRAME, "cmiDadosBasicos", require_basic_marker=True
+    )
+
+
+def test_validate_metadata_iframe_rejects_empty():
+    with pytest.raises(SessionExpiredError):
+        validate_metadata_iframe(b"   ", "cmiDadosBasicos")
+
+
+def test_validate_metadata_iframe_rejects_expired_page():
+    expired = b"<script>alert('Session expired. Please login again.')</script>"
+    with pytest.raises(SessionExpiredError):
+        validate_metadata_iframe(expired, "cmiDadosBasicos", require_basic_marker=True)
+
+
+def test_validate_metadata_iframe_requires_basic_marker():
+    plain = b"<html><body>unexpected</body></html>"
+    with pytest.raises(SessionExpiredError):
+        validate_metadata_iframe(plain, "cmiDadosBasicos", require_basic_marker=True)
+    # The full iframe does not carry the basic marker.
+    validate_metadata_iframe(plain, "cmiMetadados", require_basic_marker=False)
+
+
+def test_request_metadata_html_raises_on_expired_iframe():
+    expired = b"<script>alert('Session expired. Please login again.')</script>"
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if "cmiDadosBasicos" in str(request.url):
+            return httpx2.Response(200, content=expired)
+        return httpx2.Response(200, content=_FULL_IFRAME)
+
+    with ScraperClient(transport=httpx2.MockTransport(handler)) as client:
+        with pytest.raises(SessionExpiredError):
+            client.request_metadata_html(series_id=42)
+
+
+def test_renew_reestablishes_handshake():
+    calls: list[tuple[str, str, bytes]] = []
+    with ScraperClient(transport=_make_transport(calls)) as client:
+        before = sum(1 for _, u, _ in calls if "/index.jsp" in u)
+        client.renew()
+        after = sum(1 for _, u, _ in calls if "/index.jsp" in u)
+    assert after == before + 1
+
+
+def test_scraper_client_uses_persistent_http_client():
+    # Regression: a persistent client is required so cookies set on the
+    # /index.jsp 302 redirect (JSESSIONID/TS/SGS) survive into later
+    # localizarSeries.do POSTs; a transient client drops them and the
+    # portal answers with its session-expired page.
+    with ScraperClient(transport=_make_transport([])) as client:
+        assert client._client is not None
+        first = client._client
+        client.renew()
+        assert client._client is not None
+        assert client._client is not first
+
+
+def test_renew_clears_cookies():
+    with ScraperClient(transport=_make_transport([])) as client:
+        client.cookies.set("JSESSIONID", "x")
+        client.renew()
+        assert not any(c.name == "JSESSIONID" for c in client.cookies.jar)
+
+
+def test_scraper_client_accepts_shared_limiter():
+    from quantilica.core.http import RateLimiter
+
+    limiter = RateLimiter(2.5)
+    with ScraperClient(transport=_make_transport([]), shared_limiter=limiter) as c:
+        assert c.min_interval == 2.5
+        limiter.min_interval = 5.0
+        assert c.min_interval == 5.0  # state is shared, not copied
 
 
 def test_get_grupos_principais_posts_recuperarGruposPrincipais():

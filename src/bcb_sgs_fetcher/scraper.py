@@ -16,7 +16,12 @@ from collections.abc import Callable
 from types import TracebackType
 
 import httpx2
-from quantilica.core.http import BROWSER_HEADERS, HttpClient, HttpStatusError
+from quantilica.core.http import (
+    BROWSER_HEADERS,
+    HttpClient,
+    HttpStatusError,
+    RateLimiter,
+)
 from quantilica.core.retry import with_retry
 
 from . import logger
@@ -50,6 +55,11 @@ SESSION_EXPIRED_MARKERS: tuple[str, ...] = (
     "login.jsf",
     "acessonegado",
 )
+
+# Structural marker present only in the "Dados básicos da série" iframe
+# (cmiDadosBasicos). The SGS pages are latin-1 without a declared charset;
+# the marker is matched against the latin-1 decoding.
+BASIC_IFRAME_MARKER = "Dados básicos da série"
 
 # Status codes that usually mean the session/cookie is no longer accepted.
 _SESSION_RENEW_STATUS_CODES = frozenset({401, 403, 419, 440})
@@ -111,6 +121,45 @@ def looks_like_session_expired(
     return any(marker in body for marker in SESSION_EXPIRED_MARKERS)
 
 
+def validate_metadata_iframe(
+    content: bytes,
+    label: str,
+    *,
+    require_basic_marker: bool = False,
+) -> None:
+    """Reject metadata iframes that are not the real SGS content.
+
+    The metadata iframes (``cmiDadosBasicos``/``cmiMetadados``) are fetched
+    directly (streaming GET), bypassing the session validation used by
+    :meth:`ScraperClient.fetch_validated`. When the session/WAF serves an
+    error or expiry page in their place, it would be persisted to disk and
+    only fail later at parse time. This validates the payload eagerly.
+
+    Args:
+        content: The raw iframe bytes.
+        label: Human-readable source of the content, used in the error.
+        require_basic_marker: When True, require the "Dados básicos da
+            série" marker (only the basic iframe carries it).
+
+    Raises:
+        SessionExpiredError: When the content is empty, looks like a
+            session-expiry page, or misses the expected structural marker.
+    """
+    if not content or not content.strip():
+        raise SessionExpiredError(f"SGS returned an empty {label} iframe")
+    if looks_like_session_expired(content=content):
+        raise SessionExpiredError(
+            f"SGS returned a session-expired page for the {label} iframe"
+        )
+    if require_basic_marker and BASIC_IFRAME_MARKER not in content.decode(
+        "latin-1", errors="replace"
+    ):
+        raise SessionExpiredError(
+            f"SGS {label} iframe is missing the expected marker "
+            f"({BASIC_IFRAME_MARKER!r}); possible session/WAF page"
+        )
+
+
 class ScraperClient(HttpClient):
     """Maintains an HTTP session against the BCB SGS website.
 
@@ -128,20 +177,39 @@ class ScraperClient(HttpClient):
         language: str = "pt",
         transport: httpx2.BaseTransport | None = None,
         min_interval: float = 0.0,
+        shared_limiter: RateLimiter | None = None,
     ) -> None:
         super().__init__(
             timeout=timeout,
             transport=transport,
             min_interval=min_interval,
         )
+        if shared_limiter is not None:
+            self._rate_limiter = shared_limiter
         self.language = language
         self.init_session(language=language)
 
-    def init_session(self, language: str = "pt") -> None:
-        """Start a fresh session against SGS and seed cookies.
+    def _ensure_client(self) -> None:
+        """Establish the persistent HTTP client if not already open.
 
-        Renews the JSESSIONID cookie by hitting ``/index.jsp`` with
-        modern browser headers (required by the SGS portal's WAF).
+        The SGS portal sets ``JSESSIONID``, ``TS`` (F5) and ``SGS`` cookies
+        on the ``/index.jsp`` **302** response. Redirects are followed
+        inside a single request, so with a transient client those cookies
+        land only in the temporary client's jar and are discarded; the
+        following ``localizarSeries.do`` POST then arrives cookie-less and
+        the portal answers with its "Sessão expirada" page. Keeping a
+        persistent client makes the redirect-chain cookies stick.
+        """
+        if self._client is None:
+            self._client = self._build_client()
+
+    def init_session(self, language: str = "pt") -> None:
+        """Seed the WAF handshake against the SGS portal.
+
+        Hitting ``/index.jsp`` with modern browser headers satisfies the
+        SGS portal's WAF. Note the SGS "session" behaves as if bound to
+        IP + User-Agent (no ``JSESSIONID`` cookie is set by this call);
+        see :meth:`renew` for a full session reset.
 
         Args:
             language: ``"pt"`` or ``"en"``.
@@ -153,7 +221,22 @@ class ScraperClient(HttpClient):
         params: dict[str, str] = {}
         if language == "pt":
             params["idIdioma"] = "P"
+        self._ensure_client()
         self.get(search_url, params=params, headers=self.sgs_headers())
+
+    def renew(self) -> None:
+        """Recreate the HTTP session and re-seed the WAF handshake.
+
+        The SGS "session" behaves as if bound to IP + User-Agent rather than
+        to a ``JSESSIONID`` cookie (a fresh ``GET /index.jsp`` sets no
+        cookies). A genuine renewal therefore means dropping all client
+        state — closing the underlying client and clearing cookies — and
+        re-running the ``/index.jsp`` handshake from scratch.
+        """
+        self.close()
+        self.cookies.clear()
+        self._ensure_client()
+        self.init_session(language=self.language)
 
     def sgs_headers(self, referer: str | None = None) -> dict[str, str]:
         """Build the browser-like headers required by the SGS portal.
@@ -218,9 +301,13 @@ class ScraperClient(HttpClient):
 
         data: dict[str, bytes] = {}
         content_basic, basic_size = _get_with_progress(METADADOS_BASICOS_URL, 0)
+        validate_metadata_iframe(
+            content_basic, "cmiDadosBasicos", require_basic_marker=True
+        )
         data[BASIC] = content_basic
 
         content_full, _ = _get_with_progress(METADADOS_FULL_URL, basic_size)
+        validate_metadata_iframe(content_full, "cmiMetadados")
         data[FULL] = content_full
         return data
 
@@ -445,7 +532,7 @@ class ScraperClient(HttpClient):
                     attempt + 1,
                     _MAX_SESSION_RENEWALS_PER_CALL,
                 )
-                self.init_session(language=self.language)
+                self.renew()
         snippet = last_content[:1024].decode("latin-1", errors="replace")
         logger.error(
             "SGS session could not be renewed after %d attempts. Response snippet: %s",
@@ -462,6 +549,7 @@ class ScraperClient(HttpClient):
         HttpClient.close(self)
 
     def __enter__(self) -> "ScraperClient":
+        self._ensure_client()
         return self
 
     def __exit__(

@@ -562,8 +562,16 @@ def test_fetch_metadata_bulk_renews_session(tmp_path, monkeypatch):
     monkeypatch.setattr(bulk.time, "sleep", lambda _s: None)
 
     transport = httpx2.MockTransport(
-        lambda r: httpx2.Response(200, content=b"<html>ok</html>")
+        lambda r: httpx2.Response(
+            200,
+            content=(
+                b"<html>Dados b\xe1sicos da s\xe9rie</html>"
+                if "cmiDadosBasicos" in str(r.url)
+                else b"<html>ok</html>"
+            ),
+        )
     )
+
     calls = {"n": 0}
     original = ScraperClient.request_metadata_html
 
@@ -595,6 +603,50 @@ def test_fetch_metadata_bulk_renews_session(tmp_path, monkeypatch):
     assert (ok, failed) == (1, 0)
     assert calls["n"] == 2  # first attempt failed, renewed, second succeeded
     assert (tmp_path / "000001.json").exists()
+
+
+def test_fetch_metadata_bulk_uses_shared_global_limiter(tmp_path, monkeypatch):
+    captured: list[object] = []
+    real = ScraperClient
+
+    class RecordingScraper(real):
+        def __init__(self, **kwargs):
+            captured.append(kwargs.get("shared_limiter"))
+            super().__init__(**kwargs)
+
+    monkeypatch.setattr(bulk, "ScraperClient", RecordingScraper)
+    monkeypatch.setattr(
+        bulk, "parse_metadata_basic", lambda html: SeriesMetadataBasic(series_id=1)
+    )
+    monkeypatch.setattr(bulk, "parse_metadata_full", lambda html: SeriesMetadataFull())
+
+    transport = httpx2.MockTransport(
+        lambda r: httpx2.Response(
+            200,
+            content=(
+                b"<html>Dados b\xe1sicos da s\xe9rie</html>"
+                if "cmiDadosBasicos" in str(r.url)
+                else b"<html>ok</html>"
+            ),
+        )
+    )
+    scraper = real(transport=transport)
+    try:
+        bulk.fetch_metadata_bulk(
+            [1, 2],
+            scraper,
+            tmp_path,
+            sleeptime=10,
+            workers=4,
+            max_session_retries=1,
+        )
+    finally:
+        scraper.close()
+
+    assert captured  # at least one worker client was created
+    assert all(lim is captured[0] for lim in captured)
+    # Global spacing = per-worker interval / workers (aggregate unchanged).
+    assert captured[0].min_interval == 2.5
 
 
 def test_fetch_metadata_bulk_retries_on_series_mismatch(tmp_path, monkeypatch):

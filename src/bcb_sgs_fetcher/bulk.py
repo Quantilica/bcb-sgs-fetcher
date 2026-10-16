@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from quantilica.core.http import RateLimiter
 from quantilica.core.manifests import manifest_sidecar_path
 
 from . import logger, storage
@@ -30,6 +31,9 @@ from .reader.metadata import parse_metadata_basic, parse_metadata_full
 from .scraper import ScraperClient, looks_like_session_expired
 
 _DIAGNOSTIC_SNIPPET_LIMIT = 300
+
+# Ceiling for the adaptive pacing backoff applied after a session expiry.
+_MAX_SESSION_BACKOFF_INTERVAL = 60.0
 
 
 class SeriesMismatchError(RuntimeError):
@@ -448,16 +452,37 @@ def fetch_metadata_bulk(
     counters = {"processed": 0, "ok": 0, "failed": 0, "skipped": 0}
     stop = threading.Event()
 
+    # A single limiter shared by every worker enforces a *global* request
+    # rate instead of a per-worker one. The default derives the global
+    # spacing from the (per-worker) interval so the aggregate throughput
+    # stays identical to the historical behaviour.
+    worker_count = max(workers, 1)
+    base_interval = getattr(scraper, "min_interval", 0.0)
+    global_interval = base_interval / worker_count if base_interval > 0 else 0.0
+    shared_limiter = RateLimiter(global_interval)
+
+    def _apply_session_backoff() -> None:
+        """Slow the global pacing after a session expiry.
+
+        The SGS session is IP + User-Agent bound, so a burst that trips
+        the WAF affects every worker at once. Multiplying the shared
+        spacing (capped) gives the server room to recover without
+        stalling a single worker in isolation.
+        """
+        with lock:
+            current = shared_limiter.min_interval
+            base = current if current > 0 else (base_interval or 1.0)
+            shared_limiter.min_interval = min(base * 1.5, _MAX_SESSION_BACKOFF_INTERVAL)
+
     thread_local = threading.local()
 
     def get_scraper() -> ScraperClient:
         if not hasattr(thread_local, "client"):
-            min_interval = getattr(scraper, "min_interval", 0.0)
             thread_local.client = ScraperClient(
                 timeout=scraper.timeout,
                 language=scraper.language,
                 transport=scraper.transport,
-                min_interval=min_interval,
+                shared_limiter=shared_limiter,
             )
         return thread_local.client
 
@@ -499,8 +524,9 @@ def fetch_metadata_bulk(
                     if session_retry < max_session_retries:
                         wait = 10 * session_retry
                         worker_scraper.close()
+                        _apply_session_backoff()
                         time.sleep(wait)
-                        worker_scraper.init_session()
+                        worker_scraper.renew()
                     else:
                         logger.error(
                             "Giving up on series %d after %d retries",
@@ -521,8 +547,9 @@ def fetch_metadata_bulk(
                             wait,
                         )
                         worker_scraper.close()
+                        _apply_session_backoff()
                         time.sleep(wait)
-                        worker_scraper.init_session()
+                        worker_scraper.renew()
                     else:
                         logger.error(
                             "Giving up on series %d after %d retries",

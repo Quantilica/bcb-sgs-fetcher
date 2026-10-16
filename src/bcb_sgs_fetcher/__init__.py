@@ -62,6 +62,7 @@ from .scraper import (  # noqa: E402
     ScraperClient,
     SessionExpiredError,
     looks_like_session_expired,
+    validate_metadata_iframe,
 )
 
 __all__ = [
@@ -106,4 +107,5 @@ __all__ = [
     "parse_metadata_basic",
     "parse_metadata_full",
     "storage",
+    "validate_metadata_iframe",
 ]
