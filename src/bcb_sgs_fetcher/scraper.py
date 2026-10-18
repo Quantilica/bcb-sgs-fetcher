@@ -1,6 +1,7 @@
 """Scraper for the BCB SGS website (www3.bcb.gov.br/sgspub).
 
-:class:`ScraperClient` is a thin context manager around ``httpx2.Client``.
+:class:`ScraperClient` inherits from ``quantilica-core``'s
+:class:`~quantilica.core.http.HttpClient` and is also a context manager.
 It keeps a JSESSION cookie alive for the duration of the context and
 exposes methods that POST/GET against the SGS web pages. Each public
 method is wrapped with ``quantilica-core`` retries (exponential

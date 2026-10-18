@@ -7,6 +7,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [0.11.0] - 2026-10-16
+
 ### Adicionado
 - `ScraperClient.renew()`: reset completo de sessão (fecha o cliente, limpa cookies e refaz o handshake `/index.jsp`).
 - `validate_metadata_iframe()`: valida os iframes de metadados (`cmiDadosBasicos`/`cmiMetadados`) antes de persistir — rejeita página vazia, de sessão expirada ou sem o marcador estrutural ("Dados básicos da série") via `SessionExpiredError`.
