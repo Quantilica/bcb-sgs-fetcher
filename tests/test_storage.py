@@ -23,7 +23,7 @@ def test_write_series_data_with_manifest_sidecar(tmp_path):
     manifest_path = path.with_suffix(path.suffix + ".manifest.json")
     assert manifest_path.is_file()
     manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest_data["source_id"] == "bcb"
+    assert manifest_data["source_id"] == "bcb-sgs"
     assert manifest_data["dataset_id"] == "series_1"
     assert manifest_data["producer"] == "bcb-sgs-fetcher"
     assert len(manifest_data["sha256"]) == 64
@@ -130,6 +130,7 @@ def test_save_bytes_with_manifest_writes_sidecar(tmp_path):
     assert sidecar.exists()
     manifest = json.loads(sidecar.read_text())
     assert manifest["dataset_id"] == "metadata_1_basic"
+    assert manifest["source_id"] == "bcb-sgs"
 
 
 def test_write_combined_metadata_sits_next_to_html_with_sidecar(tmp_path):
@@ -146,5 +147,8 @@ def test_write_combined_metadata_sits_next_to_html_with_sidecar(tmp_path):
         "full": {"last_update": "x"},
     }
     assert (md / "000042.json.manifest.json").exists()
+    sidecar = json.loads((md / "000042.json.manifest.json").read_text())
+    # Canonical fetcher ID: '--fetcher bcb-sgs' (cleanup-orphans) must find it.
+    assert sidecar["source_id"] == "bcb-sgs"
     # No month re-partitioning: nothing nested under the metadata dir.
     assert not (md / "bcb-sgs_2026-10").exists()

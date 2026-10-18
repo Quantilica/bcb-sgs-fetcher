@@ -172,7 +172,7 @@ def write_series_data(
         if manifest is None:
             content = path.read_bytes()
             manifest = DownloadManifest.from_content(
-                source_id="bcb",
+                source_id="bcb-sgs",
                 dataset_id=f"series_{series_id}",
                 url=f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{series_id}/dados",
                 content=content,
@@ -232,7 +232,7 @@ def save_bytes_with_manifest(
     *,
     dataset_id: str,
     url: str,
-    source_id: str = "bcb",
+    source_id: str = "bcb-sgs",
     producer: str = "bcb-sgs-fetcher",
 ) -> None:
     """Write raw bytes atomically alongside a manifest sidecar.
@@ -247,7 +247,9 @@ def save_bytes_with_manifest(
         filepath: The destination path.
         dataset_id: The dataset identifier recorded in the manifest.
         url: The source URL recorded in the manifest.
-        source_id: The source identifier (default ``"bcb"``).
+        source_id: The source identifier (default ``"bcb-sgs"``):
+            the canonical fetcher ID, so that sidecar-consumers matching
+            on ``--fetcher bcb-sgs`` (e.g. ``cleanup-orphans``) find them.
         producer: The producing package name.
     """
     save_bytes(data, filepath)
@@ -403,7 +405,7 @@ def write_metadata(
         if manifest is None:
             content = meta_path.read_bytes()
             manifest = DownloadManifest.from_content(
-                source_id="bcb",
+                source_id="bcb-sgs",
                 dataset_id=f"metadata_{series_id}",
                 url=f"https://www3.bcb.gov.br/sgspub/consultarvalores/consultarValoresSeries.do?method=consultarMetadadosSeries&codigoSerie={series_id}",
                 content=content,
