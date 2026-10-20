@@ -5,9 +5,7 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
-## [Não lançado]
-
-## [0.11.0] - 2026-10-16
+## [0.11.0] - 2026-10-20
 
 ### Adicionado
 - `ScraperClient.renew()`: reset completo de sessão (fecha o cliente, limpa cookies e refaz o handshake `/index.jsp`).
@@ -21,6 +19,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - **Layout do metadado combinado no `catalogo sync`:** o `{id:06d}.json` passa a ser escrito ao lado dos HTMLs em `bcb-sgs_{YYYY-MM}/metadata/` (`storage.write_combined_metadata`), em vez do caminho aninhado incorreto `metadata/bcb-sgs_{YYYY-MM}/metadata/` que nenhum consumidor encontrava.
 - **`Series ID mismatch` (off-by-N):** quando a SGS devolve metadados de uma série diferente da solicitada, o erro agora é retentável (`bulk.SeriesMismatchError`) — renova a sessão e refaz a requisição — em vez de descartar a série definitivamente.
 - Remoção de sidecars junto ao descarte de HTML inválido (`_unlink_artifact`), evitando sidecars órfãos no disco.
+- Padronização de `source_id='bcb-sgs'` nos manifests de armazenamento.
 
 ### Alterado
 - **Pacing global:** `fetch_metadata_bulk` usa um único `RateLimiter` compartilhado por todos os workers (cadência global, não por cliente), preservando a taxa agregada histórica (`intervalo do worker ÷ nº de workers`), com **backoff** automático na primeira expiração de sessão (freio anti-WAF).
