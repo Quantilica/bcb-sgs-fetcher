@@ -11,7 +11,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - `ScraperClient.renew()`: reset completo de sessão (fecha o cliente, limpa cookies e refaz o handshake `/index.jsp`).
 - `validate_metadata_iframe()`: valida os iframes de metadados (`cmiDadosBasicos`/`cmiMetadados`) antes de persistir — rejeita página vazia, de sessão expirada ou sem o marcador estrutural ("Dados básicos da série") via `SessionExpiredError`.
 - `ScraperClient(shared_limiter=...)`: permite compartilhar um `RateLimiter` entre workers.
-- Escrita de manifest sidecars (`.manifest.json`) para os HTMLs crus de metadados (`{id:06d}_basic.html` / `{id:06d}_full.html`) via novo `storage.save_bytes_with_manifest`, tornando-os visíveis ao uploader efêmero concorrente (CAS híbrido).
+- Escrita de manifest sidecars (`.manifest.json`) para os HTMLs crus de metadados (`{id:06d}_basic.html` / `{id:06d}_full.html`) via novo `storage.save_bytes_with_manifest`, tornando-os visíveis a quem lista os arquivos pelo manifest.
 
 ### Corrigido
 - **Sessão SGS ("Sessão expirada" em todo POST):** o `ScraperClient` agora mantém um cliente HTTP **persistente** (`_ensure_client`), preservando os `Set-Cookie` (`JSESSIONID`, `TS`, `SGS`) que o `/index.jsp` envia no redirect 302. Antes, o cliente transitório descartava esses cookies e todo POST a `localizarSeries.do` era tratado como sessão expirada.
