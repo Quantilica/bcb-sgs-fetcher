@@ -369,6 +369,9 @@ def fetch_series_desativadas(
     if n_pages == 1:
         return
 
+    consecutive_failures = 0
+    max_consecutive_failures = 3
+
     for page in range(2, n_pages + 1):
         dest_file = dest_dir / f"series-desativadas_{page:03d}.html"
         if dest_file.exists():
@@ -379,7 +382,15 @@ def fetch_series_desativadas(
         try:
             content = scraper.change_page(page)
         except Exception as exc:
+            consecutive_failures += 1
             logger.error("Failed to fetch page %d: %s", page, exc)
+            if consecutive_failures >= max_consecutive_failures:
+                logger.warning(
+                    "Circuit breaker acionado: %d falhas consecutivas de "
+                    "scraping/WAF em séries desativadas. Encerrando download.",
+                    consecutive_failures,
+                )
+                break
             continue
         if (
             _parse_validated_html(
@@ -387,12 +398,22 @@ def fetch_series_desativadas(
             )
             is None
         ):
+            consecutive_failures += 1
             logger.error(
                 "Página %d de séries desativadas inválida — arquivo não "
                 "salvo; execute 'catalogo sync' novamente para refetch.",
                 page,
             )
+            if consecutive_failures >= max_consecutive_failures:
+                logger.warning(
+                    "Circuit breaker acionado: %d falhas consecutivas de "
+                    "resposta inválida/WAF em séries desativadas.",
+                    consecutive_failures,
+                )
+                break
             continue
+
+        consecutive_failures = 0
         storage.save_bytes(content, dest_file)
         logger.debug("Saved page %d/%d", page, n_pages)
         if on_page is not None:
