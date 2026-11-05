@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Adicionado
+- `DataRepository.path_for_entry`: caminho de destino de uma série no layout de snapshots (`data/series_<id>@<AAAAMMDDTHHMMSS>.json`).
+- Download de séries desativadas com disjuntor: após 3 falhas consecutivas de scraping ou de resposta inválida, o download é encerrado com aviso, em vez de insistir em todas as séries restantes.
+
+### Alterado
+- Exige `quantilica-core>=0.16.0` (antes `>=0.8.1`), que traz `path_for_entry` e `FreshnessPolicy`.
+- O plugin declara a política de frescor `REMOTE_ONLY`: a API JSON não tem validadores HEAD/ETag confiáveis, então a frescura é decidida pelo conteúdo, sem sondagem remota.
+
 ## [0.11.0] - 2026-10-20
 
 ### Adicionado
