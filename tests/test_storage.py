@@ -152,3 +152,11 @@ def test_write_combined_metadata_sits_next_to_html_with_sidecar(tmp_path):
     assert sidecar["source_id"] == "bcb-sgs"
     # No month re-partitioning: nothing nested under the metadata dir.
     assert not (md / "bcb-sgs_2026-10").exists()
+
+
+def test_data_repository_path_for_entry_matches_data_file_path(tmp_path):
+    ts = dt.datetime(2026, 1, 2, 13, 45, 30)
+    repo = storage.DataRepository(tmp_path)
+    expected = storage.data_file_path(tmp_path, 433, ts)
+    assert repo.path_for_entry({"id": 433}, last_modified=ts) == expected
+    assert repo.path_for_entry({"series_id": 433}, last_modified=ts) == expected

@@ -21,12 +21,17 @@ remain valid and sort before same-day datetime stamps).
 
 import datetime as dt
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from quantilica.core.files import write_bytes_atomic, write_text_atomic
 from quantilica.core.manifests import DownloadManifest, write_manifest_sidecar
-from quantilica.core.storage import StampedDataRepository, stamp_filename
+from quantilica.core.storage import (
+    BaseDataRepository,
+    StampedDataRepository,
+    stamp_filename,
+)
 
 from .constants import BASIC, FULL
 
@@ -142,6 +147,37 @@ def snapshot_exists_for_date(output: Path, series_id: int, date: dt.date) -> boo
         return False
     prefix = f"{_series_slug(series_id)}@{date:%Y%m%d}"
     return any(data_dir.glob(f"{prefix}*.json"))
+
+
+class DataRepository(BaseDataRepository):
+    """Repository for the BCB SGS layout under ``<root>``."""
+
+    def path_for_entry(
+        self,
+        entry: Mapping[str, Any],
+        *,
+        last_modified: dt.date | dt.datetime | None = None,
+        precision: Literal["date", "datetime"] = "date",
+        subdir_by_year: bool = False,
+    ) -> Path:
+        """Return the stamped snapshot path of a series entry.
+
+        Overrides ``BaseDataRepository.path_for_entry``: SGS snapshots live in
+        the fixed layout of :func:`data_file_path`
+        (``data/series_{id}@{YYYYMMDDTHHMMSS}.json``), so ``precision`` and
+        ``subdir_by_year`` are accepted for signature compatibility and ignored.
+
+        Args:
+            entry: Entry with the series ``id`` (or ``series_id``).
+            last_modified: The snapshot timestamp; defaults to now.
+            precision: Ignored.
+            subdir_by_year: Ignored.
+
+        Returns:
+            Path: The stamped path for the series snapshot.
+        """
+        series_id = int(entry.get("id") or entry["series_id"])
+        return data_file_path(self.storage.root, series_id, last_modified)
 
 
 def write_series_data(
