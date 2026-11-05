@@ -14,6 +14,7 @@ from quantilica.cli.ui import (
     make_batch_progress,
     setup_rich_logging,
 )
+from quantilica.core.sync import FreshnessPolicy
 from rich.panel import Panel
 from rich.progress import (
     MofNCompleteColumn,
@@ -60,6 +61,8 @@ fetcher_app = BcbSgsFetcherApp(
     list_datasets=bcb_list_datasets,
     path_builder=bcb_path_builder,
     default_output=_DEFAULT_OUTPUT,
+    # API JSON sem HEAD/ETag confiável: sem sondagem remota (F3).
+    freshness_policy=FreshnessPolicy.REMOTE_ONLY,
 )
 
 app = fetcher_app.app
