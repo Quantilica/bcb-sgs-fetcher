@@ -7,6 +7,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [0.12.0] - 2026-11-05
+
 ### Adicionado
 - `DataRepository.path_for_entry`: caminho de destino de uma série no layout de snapshots (`data/series_<id>@<AAAAMMDDTHHMMSS>.json`).
 - Download de séries desativadas com disjuntor: após 3 falhas consecutivas de scraping ou de resposta inválida, o download é encerrado com aviso, em vez de insistir em todas as séries restantes.
