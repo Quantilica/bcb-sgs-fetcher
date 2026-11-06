@@ -90,6 +90,6 @@ include = ["src"]
 source = ["bcb_sgs_fetcher"]
 
 [tool.coverage.report]
-# Cobertura abaixo de 80%: relatório informativo (dispensa temporária, ver planning/notes/2026-11-04-ci-pyright-cobertura-dispensas.md).
+# Cobertura abaixo de 80%: relatório informativo (dispensa temporária).
 show_missing = true
 skip_covered = true
