@@ -14,6 +14,7 @@ from quantilica.cli.ui import (
     make_batch_progress,
     setup_rich_logging,
 )
+from quantilica.core.registry import FetcherInfo
 from quantilica.core.sync import FreshnessPolicy
 from rich.panel import Panel
 from rich.progress import (
@@ -56,6 +57,15 @@ class BcbSgsFetcherApp(FetcherApp):
 fetcher_app = BcbSgsFetcherApp(
     name="bcb-sgs",
     help="Dados do SGS/BCB (séries temporais).",
+    info=FetcherInfo(
+        id="bcb-sgs",
+        nome="BCB - Sistema Gerenciador de Séries Temporais (SGS)",
+        aliases=("bcb",),
+        orgao="Banco Central do Brasil (BCB)",
+        homepage="https://www.bcb.gov.br/estatisticas/tabelaestatistica",
+        cadencia="daily",
+        dominio="macroeconomia",
+    ),
     groups_dict={},
     aliases_dict={},
     list_datasets=bcb_list_datasets,
