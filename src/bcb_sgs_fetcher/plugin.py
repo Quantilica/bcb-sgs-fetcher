@@ -171,6 +171,7 @@ def fetch(
         )
         return
 
+    skipped_total = [0]
     try:
         import threading
 
@@ -207,6 +208,7 @@ def fetch(
             def on_progress(
                 processed: int, total: int, ok: int, failed: int, skipped: int
             ) -> None:
+                skipped_total[0] = skipped
                 overall.update(
                     task,
                     completed=processed,
@@ -264,7 +266,9 @@ def fetch(
             f"[green]✓[/green]  [bold]{successful}[/bold]"
             " série(s) baixada(s) com sucesso."
         )
-    if code := sync_exit_code(successful, failed_count):
+    # Série pulada (--skip-existing: snapshot do dia já existe; ou sem dados) conta
+    # como sucesso, como no cli (arquivo já atualizado conta como baixado).
+    if code := sync_exit_code(successful + skipped_total[0], failed_count):
         raise typer.Exit(code)
 
 
