@@ -13,6 +13,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Alterado
 - Requer `quantilica-core>=0.19.0` (e `quantilica-cli>=0.17.0` como host).
 
+### Corrigido
+- `series sync` não sai mais com código 0 quando alguma série falha: sai com `3` se parte das séries baixou e parte falhou, com `1` se nenhuma baixou e com `0` sem falhas, o mesmo contrato do `sync` dos demais fetchers. `catalogo sync` (coleta do catálogo) continua tolerando falhas de metadados e saindo com `0`.
+
 ## [0.12.0] - 2026-11-05
 
 ### Adicionado

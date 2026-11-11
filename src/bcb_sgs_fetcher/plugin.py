@@ -85,6 +85,21 @@ app.add_typer(catalogo_sub, name="catalogo")
 console = get_console()
 
 
+# Mesmo contrato do ``sync`` do ``FetcherApp`` (quantilica-cli >= 0.19.0,
+# ``EXIT_SYNC_PARTIAL``): 3 = parte das séries baixou e parte falhou; 1 = nenhuma
+# baixou; 0 = sem falhas. Definido aqui para não exigir a versão nova do host.
+# Vale para ``series sync``; ``catalogo sync`` (o job mensal do cron) tolera
+# falhas de metadados por desenho e não muda.
+EXIT_SYNC_PARTIAL = 3
+
+
+def sync_exit_code(successful: int, failed: int) -> int:
+    """Código de saída do ``series sync`` dadas as séries baixadas e as que falharam."""
+    if not failed:
+        return 0
+    return EXIT_SYNC_PARTIAL if successful > 0 else 1
+
+
 @series_sub.command("sync")
 def fetch(
     series_id: Annotated[
@@ -249,6 +264,8 @@ def fetch(
             f"[green]✓[/green]  [bold]{successful}[/bold]"
             " série(s) baixada(s) com sucesso."
         )
+    if code := sync_exit_code(successful, failed_count):
+        raise typer.Exit(code)
 
 
 @series_sub.command("metadata")
