@@ -62,6 +62,7 @@ fetcher_app = BcbSgsFetcherApp(
         nome="BCB - Sistema Gerenciador de Séries Temporais (SGS)",
         aliases=("bcb",),
         orgao="Banco Central do Brasil (BCB)",
+        licenca="Open Data Commons Open Database License (ODbL)",
         homepage="https://www.bcb.gov.br/estatisticas/tabelaestatistica",
         cadencia="daily",
         dominio="macroeconomia",

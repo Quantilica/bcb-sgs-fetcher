@@ -7,6 +7,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Alterado
+- `FetcherInfo.licenca` passa a declarar a licença da fonte: ODbL (evidência: https://dadosabertos.bcb.gov.br/dataset/11-taxa-de-juros---selic).
+
 ## [0.13.0] - 2026-11-11
 
 ### Adicionado
