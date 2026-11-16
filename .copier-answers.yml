@@ -1,0 +1,17 @@
+_commit: v0.2.1
+_src_path: /home/dk/code/Quantilica/fetcher-template
+author_email: daniel@dkko.me
+author_name: Komesu, D.K.
+cadencia: daily
+description: Fetcher for BCB SGS (Sistema Gerenciador de Séries Temporais)
+domain: bcb
+dominio: macroeconomia
+has_lake: false
+homepage: https://www.bcb.gov.br/estatisticas/tabelaestatistica
+licenca: Open Data Commons Open Database License (ODbL)
+orgao: Banco Central do Brasil (BCB)
+package_name: bcb-sgs-fetcher
+package_slug: bcb_sgs_fetcher
+protocol: http
+source_id: bcb-sgs
+source_name: BCB - Sistema Gerenciador de Séries Temporais (SGS)
