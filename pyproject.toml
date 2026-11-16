@@ -93,3 +93,6 @@ source = ["bcb_sgs_fetcher"]
 # Cobertura abaixo de 80%: relatório informativo (dispensa temporária).
 show_missing = true
 skip_covered = true
+
+[tool.uv]
+required-version = ">=0.9"
