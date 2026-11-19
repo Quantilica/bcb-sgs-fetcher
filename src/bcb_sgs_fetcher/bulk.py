@@ -8,6 +8,8 @@ carries ``quantilica-core`` retry decorators, so no additional retry
 wrapper is needed here.
 """
 
+from __future__ import annotations
+
 import dataclasses
 import datetime as dt
 import json

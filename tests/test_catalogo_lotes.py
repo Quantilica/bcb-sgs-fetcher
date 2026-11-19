@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import threading
 import time
@@ -485,6 +486,13 @@ def test_catalogo_sync_sessao_indisponivel_no_passo_4_sai_com_1(monkeypatch, tmp
 
 
 def test_help_do_catalogo_sync_anuncia_max_runtime():
-    result = runner.invoke(plugin.app, ["catalogo", "sync", "--help"])
-    assert "--max-runtime" in result.output
-    assert "--skip-existing" in result.output
+    # Largura fixa e sem cor: no CI a ajuda sai colorida e estreita, e os
+    # códigos ANSI e as quebras de linha partem o nome da opção.
+    result = runner.invoke(
+        plugin.app,
+        ["catalogo", "sync", "--help"],
+        env={"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"},
+    )
+    output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--max-runtime" in output
+    assert "--skip-existing" in output
