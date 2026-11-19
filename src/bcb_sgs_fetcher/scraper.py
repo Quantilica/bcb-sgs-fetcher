@@ -13,6 +13,7 @@ HTML page). When detected, the session is transparently re-seeded
 (:meth:`ScraperClient.init_session`) and the request retried.
 """
 
+import time
 from collections.abc import Callable
 from types import TracebackType
 
@@ -23,7 +24,7 @@ from quantilica.core.http import (
     HttpStatusError,
     RateLimiter,
 )
-from quantilica.core.retry import with_retry
+from quantilica.core.retry import RetryError, exponential_delay, with_retry
 
 from . import logger
 from .constants import BASIC, FULL
@@ -89,6 +90,26 @@ _retry_http = with_retry(
     max_delay=300.0,
     retry_exceptions=_RETRY_EXCEPTIONS,
 )
+
+
+# ``init_session`` hits ``/index.jsp`` once per (re)connection. The HTTP
+# layer already retries a handful of times within a few seconds, which is
+# not enough when the portal answers 5xx for minutes at a time. This outer
+# loop waits much longer between rounds (15 s, 30 s, 60 s, 120 s, 240 s).
+_INIT_SESSION_ATTEMPTS = 6
+_INIT_SESSION_BASE_DELAY = 15.0
+_INIT_SESSION_MAX_DELAY = 240.0
+
+
+def _is_transient_init_error(exc: BaseException) -> bool:
+    """Tell whether a failed ``/index.jsp`` handshake is worth waiting out.
+
+    Server-side failures (5xx, exhausted core retries) and transport
+    errors are transient; client errors such as 404 are not.
+    """
+    if isinstance(exc, HttpStatusError):
+        return exc.status_code >= 500
+    return isinstance(exc, RetryError | httpx2.RequestError | OSError)
 
 
 class SessionExpiredError(RuntimeError):
@@ -212,6 +233,10 @@ class ScraperClient(HttpClient):
         IP + User-Agent (no ``JSESSIONID`` cookie is set by this call);
         see :meth:`renew` for a full session reset.
 
+        Transient failures (5xx, transport errors) are retried with a long
+        exponential wait so a portal that is briefly down does not abort
+        the whole run; the last error is raised once the attempts end.
+
         Args:
             language: ``"pt"`` or ``"en"``.
         """
@@ -223,7 +248,29 @@ class ScraperClient(HttpClient):
         if language == "pt":
             params["idIdioma"] = "P"
         self._ensure_client()
-        self.get(search_url, params=params, headers=self.sgs_headers())
+        for attempt in range(1, _INIT_SESSION_ATTEMPTS + 1):
+            try:
+                self.get(search_url, params=params, headers=self.sgs_headers())
+                return
+            except Exception as exc:
+                if attempt == _INIT_SESSION_ATTEMPTS or not _is_transient_init_error(
+                    exc
+                ):
+                    raise
+                delay = exponential_delay(
+                    attempt,
+                    base_delay=_INIT_SESSION_BASE_DELAY,
+                    max_delay=_INIT_SESSION_MAX_DELAY,
+                )
+                logger.warning(
+                    "SGS handshake failed (%s); waiting %.0fs before trying "
+                    "again (%d/%d)",
+                    exc,
+                    delay,
+                    attempt,
+                    _INIT_SESSION_ATTEMPTS,
+                )
+                time.sleep(delay)
 
     def renew(self) -> None:
         """Recreate the HTTP session and re-seed the WAF handshake.

@@ -10,6 +10,7 @@ wrapper is needed here.
 
 import dataclasses
 import datetime as dt
+import json
 import re
 import threading
 import time
@@ -19,7 +20,11 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 from quantilica.core.http import RateLimiter
-from quantilica.core.manifests import manifest_sidecar_path
+from quantilica.core.manifests import (
+    DownloadManifest,
+    manifest_sidecar_path,
+    write_manifest_sidecar,
+)
 
 from . import logger, storage
 from .constants import BASIC, FULL
@@ -34,6 +39,12 @@ _DIAGNOSTIC_SNIPPET_LIMIT = 300
 
 # Ceiling for the adaptive pacing backoff applied after a session expiry.
 _MAX_SESSION_BACKOFF_INTERVAL = 60.0
+
+# Wait before a worker tries to renew its session again after a failed
+# renewal (doubles per consecutive failure, capped), so a portal that is
+# down is not hammered by every worker at once.
+_RENEW_BACKOFF_BASE = 30.0
+_RENEW_BACKOFF_MAX = 300.0
 
 
 class SeriesMismatchError(RuntimeError):
@@ -56,6 +67,69 @@ def _unlink_artifact(path: Path) -> None:
     """
     path.unlink(missing_ok=True)
     manifest_sidecar_path(path).unlink(missing_ok=True)
+
+
+def _metadata_url(series_id: int) -> str:
+    return (
+        "https://www3.bcb.gov.br/sgspub/consultarvalores/"
+        "consultarValoresSeries.do?method=consultarMetadadosSeries"
+        f"&codigoSerie={series_id}"
+    )
+
+
+def metadata_is_done(dest_dir: Path, series_id: int) -> bool:
+    """Tell whether the combined metadata of a series is already complete.
+
+    The combined ``{id:06d}.json`` is the last artifact written for a
+    series, followed by its ``.manifest.json`` sidecar (both atomically).
+    A series therefore counts as done when:
+
+    - the sidecar exists, even if the JSON is gone: the uploader removes
+      the data file once it is safely stored elsewhere and keeps the
+      sidecar as the freshness marker; or
+    - the JSON exists, parses and carries the expected sections, even if
+      the sidecar is missing (the run was killed between the two writes).
+      The missing sidecar is regenerated so the file is not left invisible
+      to the uploader.
+
+    A JSON that does not parse is removed so the series is fetched again.
+
+    Args:
+        dest_dir: The metadata directory.
+        series_id: The series ID.
+
+    Returns:
+        bool: True when the series does not need to be fetched again.
+    """
+    json_path = dest_dir / f"{series_id:06d}.json"
+    sidecar = manifest_sidecar_path(json_path)
+    if sidecar.exists():
+        return True
+    if not json_path.exists():
+        return False
+    try:
+        content = json_path.read_bytes()
+        payload = json.loads(content)
+        valid = isinstance(payload, dict) and BASIC in payload and FULL in payload
+    except (OSError, ValueError):
+        valid = False
+    if not valid:
+        logger.warning(
+            "Incomplete metadata JSON for series %d — removing it to refetch",
+            series_id,
+        )
+        _unlink_artifact(json_path)
+        return False
+    manifest = DownloadManifest.from_content(
+        source_id="bcb-sgs",
+        dataset_id=f"metadata_{series_id}",
+        url=_metadata_url(series_id),
+        content=content,
+        path=str(json_path.absolute()),
+        producer="bcb-sgs-fetcher",
+    )
+    write_manifest_sidecar(json_path, manifest)
+    return True
 
 
 def _diagnostic_snippet(content: bytes, limit: int = _DIAGNOSTIC_SNIPPET_LIMIT) -> str:
@@ -432,6 +506,7 @@ def fetch_metadata_bulk(
     on_progress: (Callable[[int, int, int, int, int], None] | None) = None,
     on_finish: Callable[[int, str], None] | None = None,
     on_file_progress: Callable[[int, int, int], None] | None = None,
+    stop_event: threading.Event | None = None,
 ) -> tuple[int, int]:
     """Download and parse metadata for a list of series IDs.
 
@@ -443,7 +518,17 @@ def fetch_metadata_bulk(
 
     On parse failure the HTML files are removed so the next run
     re-fetches them.  On session-level errors the session is renewed up
-    to *max_session_retries* times before giving up on that series.
+    to *max_session_retries* times before giving up on that series.  A
+    renewal that itself fails counts the series as failed and the worker
+    moves on; before its next series the worker waits (exponentially,
+    capped) and tries to renew again, so a portal that is down is not
+    hammered.
+
+    With *skip_existing*, a series whose combined JSON (or, once the file
+    was handed off, its manifest sidecar) is already on disk is skipped,
+    which lets a later run resume where an interrupted one stopped.  Every
+    file is written atomically, so an interruption never leaves a partial
+    file that would be mistaken for a finished series.
 
     Args:
         series_ids: List of series IDs to fetch.
@@ -457,6 +542,10 @@ def fetch_metadata_bulk(
         on_progress: Callback for overall progress updates.
         on_finish: Callback for when a series finishes processing.
         on_file_progress: Callback for file download progress.
+        stop_event: Optional event that, once set, makes the workers stop
+            taking new series (the ones in flight finish). Series left
+            unprocessed are neither successful nor failed; the caller can
+            tell the run was cut short by checking the event.
 
     Returns:
         tuple[int, int]: ``(successful, failed)`` counts.
@@ -471,7 +560,7 @@ def fetch_metadata_bulk(
     total = len(series_ids)
     lock = threading.Lock()
     counters = {"processed": 0, "ok": 0, "failed": 0, "skipped": 0}
-    stop = threading.Event()
+    stop = stop_event if stop_event is not None else threading.Event()
 
     # A single limiter shared by every worker enforces a *global* request
     # rate instead of a per-worker one. The default derives the global
@@ -497,15 +586,127 @@ def fetch_metadata_bulk(
 
     thread_local = threading.local()
 
-    def get_scraper() -> ScraperClient:
-        if not hasattr(thread_local, "client"):
-            thread_local.client = ScraperClient(
-                timeout=scraper.timeout,
-                language=scraper.language,
-                transport=scraper.transport,
-                shared_limiter=shared_limiter,
+    def get_scraper() -> ScraperClient | None:
+        """Return the worker's client, ready to use, or ``None``.
+
+        Builds the client on first use and, after a failed renewal,
+        renews it again. Both can fail while the portal is down; each
+        consecutive failure doubles the wait before the next attempt, so
+        the worker does not hammer the WAF. ``None`` means the worker
+        has no usable session now (or the run was asked to stop).
+        """
+        failures = getattr(thread_local, "failures", 0)
+        if failures:
+            wait = min(_RENEW_BACKOFF_BASE * 2 ** (failures - 1), _RENEW_BACKOFF_MAX)
+            logger.warning(
+                "Waiting %.0fs before trying to re-establish the SGS session "
+                "(%d consecutive failure(s))",
+                wait,
+                failures,
             )
-        return thread_local.client
+            if stop.wait(wait):
+                return None
+        try:
+            client = getattr(thread_local, "client", None)
+            if client is None:
+                client = ScraperClient(
+                    timeout=scraper.timeout,
+                    language=scraper.language,
+                    transport=scraper.transport,
+                    shared_limiter=shared_limiter,
+                )
+                thread_local.client = client
+            elif getattr(thread_local, "needs_renew", False):
+                client.renew()
+        except Exception as exc:
+            thread_local.failures = failures + 1
+            logger.error("Could not establish the SGS session: %s", exc)
+            return None
+        thread_local.failures = 0
+        thread_local.needs_renew = False
+        return client
+
+    def _renew(worker_scraper: ScraperClient) -> bool:
+        """Renew the worker's session; a failure must not kill the worker."""
+        try:
+            worker_scraper.renew()
+        except Exception as exc:
+            thread_local.failures = getattr(thread_local, "failures", 0) + 1
+            thread_local.needs_renew = True
+            logger.error("Failed to renew the SGS session: %s", exc)
+            return False
+        thread_local.failures = 0
+        thread_local.needs_renew = False
+        return True
+
+    def _fetch_with_retries(series_id: int, worker_scraper: ScraperClient) -> str:
+        """Fetch one series, renewing the session on errors; return the outcome."""
+        outcome = ""
+        session_retry = 0
+        while not outcome and session_retry < max_session_retries:
+            if stop.is_set():
+                outcome = "interrupted"
+                break
+            try:
+
+                def _prog(dl: int, tot: int) -> None:
+                    if on_file_progress:
+                        on_file_progress(series_id, dl, tot)
+
+                ok = _fetch_one_metadata(
+                    series_id, worker_scraper, dest_dir, sleeptime, _prog
+                )
+                outcome = "ok" if ok else "failed"
+                break
+            except SeriesMismatchError as exc:
+                session_retry += 1
+                logger.warning(
+                    "SGS returned a different series for %d: %s — "
+                    "renewing session and retrying (%d/%d)",
+                    series_id,
+                    exc,
+                    session_retry,
+                    max_session_retries,
+                )
+                if session_retry < max_session_retries:
+                    wait = 10 * session_retry
+                    worker_scraper.close()
+                    _apply_session_backoff()
+                    time.sleep(wait)
+                    if not _renew(worker_scraper):
+                        outcome = "failed"
+                else:
+                    logger.error(
+                        "Giving up on series %d after %d retries",
+                        series_id,
+                        max_session_retries,
+                    )
+                    outcome = "failed"
+            except Exception as exc:
+                session_retry += 1
+                logger.error("Session error for series %d: %s", series_id, exc)
+                if session_retry < max_session_retries:
+                    wait = 10 * session_retry
+                    logger.warning(
+                        "Renewing session, retrying series %d (%d/%d) after %ds",
+                        series_id,
+                        session_retry,
+                        max_session_retries,
+                        wait,
+                    )
+                    worker_scraper.close()
+                    _apply_session_backoff()
+                    time.sleep(wait)
+                    if not _renew(worker_scraper):
+                        outcome = "failed"
+                else:
+                    logger.error(
+                        "Giving up on series %d after %d retries",
+                        series_id,
+                        max_session_retries,
+                    )
+                    outcome = "failed"
+        return outcome
 
     def _worker(series_id: int) -> None:
         if stop.is_set():
@@ -515,69 +716,22 @@ def fetch_metadata_bulk(
             on_start(series_id)
 
         outcome = ""
-        if skip_existing and (dest_dir / f"{series_id:06d}.json").exists():
+        if skip_existing and metadata_is_done(dest_dir, series_id):
             outcome = "skipped"
         else:
             worker_scraper = get_scraper()
-            session_retry = 0
-            while session_retry < max_session_retries:
-                try:
+            if worker_scraper is None:
+                # Stop requested while waiting, or no session available.
+                outcome = "interrupted" if stop.is_set() else "failed"
+            else:
+                outcome = _fetch_with_retries(series_id, worker_scraper)
 
-                    def _prog(dl: int, tot: int) -> None:
-                        if on_file_progress:
-                            on_file_progress(series_id, dl, tot)
-
-                    ok = _fetch_one_metadata(
-                        series_id, worker_scraper, dest_dir, sleeptime, _prog
-                    )
-                    outcome = "ok" if ok else "failed"
-                    break
-                except SeriesMismatchError as exc:
-                    session_retry += 1
-                    logger.warning(
-                        "SGS returned a different series for %d: %s — "
-                        "renewing session and retrying (%d/%d)",
-                        series_id,
-                        exc,
-                        session_retry,
-                        max_session_retries,
-                    )
-                    if session_retry < max_session_retries:
-                        wait = 10 * session_retry
-                        worker_scraper.close()
-                        _apply_session_backoff()
-                        time.sleep(wait)
-                        worker_scraper.renew()
-                    else:
-                        logger.error(
-                            "Giving up on series %d after %d retries",
-                            series_id,
-                            max_session_retries,
-                        )
-                        outcome = "failed"
-                except Exception as exc:
-                    session_retry += 1
-                    logger.error("Session error for series %d: %s", series_id, exc)
-                    if session_retry < max_session_retries:
-                        wait = 10 * session_retry
-                        logger.warning(
-                            "Renewing session, retrying series %d (%d/%d) after %ds",
-                            series_id,
-                            session_retry,
-                            max_session_retries,
-                            wait,
-                        )
-                        worker_scraper.close()
-                        _apply_session_backoff()
-                        time.sleep(wait)
-                        worker_scraper.renew()
-                    else:
-                        logger.error(
-                            "Giving up on series %d after %d retries",
-                            series_id,
-                            max_session_retries,
-                        )
-                        outcome = "failed"
+        if outcome == "interrupted":
+            # Not processed: neither successful nor failed; just release it.
+            with lock:
+                if on_finish is not None:
+                    on_finish(series_id, outcome)
+            return
 
         with lock:
             counters[outcome] += 1
@@ -974,11 +1128,7 @@ def _fetch_one_metadata(
 ) -> bool:
     dest_basic = dest_dir / f"{series_id:06d}_basic.html"
     dest_full = dest_dir / f"{series_id:06d}_full.html"
-    meta_url = (
-        "https://www3.bcb.gov.br/sgspub/consultarvalores/"
-        "consultarValoresSeries.do?method=consultarMetadadosSeries"
-        f"&codigoSerie={series_id}"
-    )
+    meta_url = _metadata_url(series_id)
 
     if dest_basic.exists() and dest_full.exists():
         html = {

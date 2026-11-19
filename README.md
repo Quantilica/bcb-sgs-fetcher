@@ -119,6 +119,22 @@ Para ajustar o intervalo entre requisições (padrão: 10 segundos):
 bcb-sgs-fetcher catalogo sync -o /data/bcb-sgs --sleeptime 5
 ```
 
+#### Retomar em lotes
+
+O passo 4 leva muito tempo (milhares de séries, cada uma com três requisições
+espaçadas para não acionar o WAF do portal). Para dividi-lo em lotes, limite o
+tempo de cada rodada e retome com `--skip-existing`:
+
+```bash
+bcb-sgs-fetcher catalogo sync -o /data/bcb-sgs --skip-existing --max-runtime 20000
+```
+
+Ao esgotar o tempo (ou ao receber SIGTERM), os workers terminam a série em
+andamento e o comando sai com código `3` (sucesso parcial; `1` se nada novo foi
+baixado). Todo arquivo é gravado de forma atômica, então a interrupção nunca
+deixa uma série pela metade. A rodada seguinte, **no mesmo mês** (o diretório de
+dados é particionado por mês), pula as séries prontas e continua de onde parou.
+
 #### Passos individuais
 
 Se precisar executar um passo isoladamente (ex.: após corrigir falhas

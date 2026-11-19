@@ -9,11 +9,18 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Alterado
 - CI e infraestrutura alinhados ao template (fetcher-template v0.2.1).
+- `catalogo sync`: o handshake com o portal (`init_session`, que também roda em cada renovação de sessão) passa a tentar 6 rodadas com espera de 15 s a 240 s em erro 5xx ou de transporte, além das tentativas rápidas da camada HTTP; erro 4xx continua falhando de imediato.
+- `catalogo sync --skip-existing` considera a série pronta quando o JSON combinado existe e é válido ou quando só resta o sidecar `.manifest.json` (o arquivo de dados pode já ter sido removido depois de guardado em outro lugar). Um JSON válido sem sidecar (rodada morta entre as duas gravações) recebe o sidecar de volta; um JSON truncado é removido e a série é baixada de novo.
+- `catalogo sync` encerra com código `3` (sucesso parcial) quando é interrompido por SIGTERM ou por `--max-runtime` depois de baixar ao menos uma série, e com `1` se nada novo foi baixado. Sem interrupção o código de saída não muda.
 
 ### Adicionado
 - Testes: identidade do registro conferida.
+- `catalogo sync --max-runtime SEGUNDOS`: ao esgotar o tempo, o passo 4 para de iniciar séries, deixa as em andamento terminarem e sai com `3`; uma nova rodada com `--skip-existing` continua de onde parou (no mesmo mês, pois o diretório de dados é particionado por mês).
+- `fetch_metadata_bulk(stop_event=...)` e `metadata_is_done()`: parada cooperativa dos workers e critério único de "série já baixada".
 
 ### Corrigido
+- `catalogo sync`: quando a renovação da sessão falha (por exemplo, o portal responde 5xx no `index.jsp` logo depois de um erro 500 em `cmiMetadados.jsp`), a série conta como falha e o worker segue, em vez de a exceção derrubar o pipeline inteiro. Antes da próxima série o worker espera (30 s, dobrando a cada falha seguida, no máximo 300 s) e tenta renovar de novo, para não sobrecarregar o portal. A falha ao abrir a sessão de um worker recebe o mesmo tratamento, e a falha da sessão inicial do passo 4 vira mensagem clara com saída `1`.
+- SIGTERM durante o passo 4 do `catalogo sync` passa a ser tratado: os workers terminam a série em andamento e a execução sai de forma ordenada. As gravações já eram atômicas, então nenhuma interrupção deixa JSON ou HTML parcial que o `--skip-existing` tomaria por pronto.
 - CI: o `uv sync` do workflow de testes deixa de passar `--index` e `--index-strategy` do índice Quantilica. O pacote não depende de nada que só exista no índice, e o GitHub Pages responde com 503 intermitente quando o caminho não existe, o que derrubava o job.
 
 ## [0.14.0] - 2026-11-14

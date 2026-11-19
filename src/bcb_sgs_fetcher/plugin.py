@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import signal
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -32,6 +34,7 @@ from bcb_sgs_fetcher import (
     SgsDataClient,
     bulk,
     extract_table_data,
+    logger,
     parse_metadata_basic,
     parse_metadata_full,
     storage,
@@ -92,6 +95,16 @@ console = get_console()
 # Vale para ``series sync``; ``catalogo sync`` (o job mensal do cron) tolera
 # falhas de metadados por desenho e não muda.
 EXIT_SYNC_PARTIAL = 3
+
+
+def interrupted_exit_code(successful: int) -> int:
+    """Código de saída do ``catalogo sync`` cortado por tempo ou por sinal.
+
+    ``3`` (``EXIT_SYNC_PARTIAL``) quando houve progresso nesta rodada: o que
+    baixou está íntegro em disco e uma nova rodada com ``--skip-existing``
+    continua de onde parou. ``1`` quando nada novo baixou.
+    """
+    return EXIT_SYNC_PARTIAL if successful > 0 else 1
 
 
 def sync_exit_code(successful: int, failed: int) -> int:
@@ -609,9 +622,27 @@ def pipeline_cmd(
         int,
         typer.Option("--workers", help="Downloads concorrentes (padrão: 4)"),
     ] = 4,
+    max_runtime: Annotated[
+        float | None,
+        typer.Option(
+            "--max-runtime",
+            min=1,
+            help=(
+                "Segundos de execução do passo 4: ao esgotar, para de iniciar séries, "
+                "deixa as em andamento terminarem e sai com 3 (parcial; 1 se nada "
+                "novo baixou). Combine com --skip-existing para retomar na próxima "
+                "rodada. Sem a opção, só o SIGTERM interrompe."
+            ),
+        ),
+    ] = None,
     verbose: Annotated[bool, typer.Option("--verbose", help="Logs detalhados")] = False,
 ) -> None:
-    """Sincronizar o catálogo completo de metadados do SGS/BCB (4 passos)."""
+    """Sincronizar o catálogo completo de metadados do SGS/BCB (4 passos).
+
+    Com --skip-existing a rodada retoma o passo 4 de onde a anterior parou
+    (no mesmo mês). SIGTERM e --max-runtime encerram com elegância: nada
+    fica pela metade em disco e o código de saída é 3 quando houve progresso.
+    """
     setup_rich_logging(verbose, console=console)
     data_dir = storage.get_data_dir(output, dt.date.today())
 
@@ -759,7 +790,50 @@ def pipeline_cmd(
                 if task_id is not None:
                     file_prog.update(task_id, completed=downloaded, total=total or None)
 
-        scraper = ScraperClient()
+        try:
+            scraper = ScraperClient()
+        except Exception as exc:
+            console.print(
+                f"[red]Erro:[/red] sessão do SGS indisponível ({exc}); os passos "
+                "1 a 3 ficaram em disco, rode 'catalogo sync --skip-existing' "
+                "de novo."
+            )
+            raise typer.Exit(code=1) from exc
+        stop_event = threading.Event()
+        tallies = {"processed": 0, "skipped": 0}
+
+        def on_progress_tally(
+            processed: int, total: int, ok: int, failed: int, skipped: int
+        ) -> None:
+            tallies["processed"] = processed
+            tallies["skipped"] = skipped
+            on_progress(processed, total, ok, failed, skipped)
+
+        def _request_stop(signum: int, _frame: object) -> None:
+            if not stop_event.is_set():
+                logger.warning(
+                    "Sinal %d recebido — concluindo as séries em andamento e "
+                    "encerrando (retome com --skip-existing).",
+                    signum,
+                )
+            stop_event.set()
+
+        def _deadline_reached() -> None:
+            logger.warning(
+                "Tempo máximo (%ss) esgotado — concluindo as séries em "
+                "andamento e encerrando (retome com --skip-existing).",
+                max_runtime,
+            )
+            stop_event.set()
+
+        previous_handler = None
+        timer: threading.Timer | None = None
+        if threading.current_thread() is threading.main_thread():
+            previous_handler = signal.signal(signal.SIGTERM, _request_stop)
+        if max_runtime is not None:
+            timer = threading.Timer(max_runtime, _deadline_reached)
+            timer.daemon = True
+            timer.start()
         try:
             successful, failed_count = bulk.fetch_metadata_bulk(
                 ids,
@@ -769,11 +843,16 @@ def pipeline_cmd(
                 skip_existing=skip_existing,
                 workers=workers,
                 on_start=on_start,
-                on_progress=on_progress,
+                on_progress=on_progress_tally,
                 on_finish=on_finish,
                 on_file_progress=on_file_progress,
+                stop_event=stop_event,
             )
         finally:
+            if timer is not None:
+                timer.cancel()
+            if previous_handler is not None:
+                signal.signal(signal.SIGTERM, previous_handler)
             scraper.close()
 
     if failed_count:
@@ -791,6 +870,15 @@ def pipeline_cmd(
     for step, result in results.items():
         summary.add_row(step, result)
     console.print(summary)
+
+    if stop_event.is_set():
+        pending = len(ids) - tallies["processed"]
+        console.print(
+            f"[yellow]⚠[/yellow]  Interrompido com {pending} série(s) "
+            "pendente(s) de metadados. Rode 'catalogo sync --skip-existing' "
+            "no mesmo mês para continuar de onde parou."
+        )
+        raise typer.Exit(code=interrupted_exit_code(successful))
 
 
 @series_sub.command("search")
